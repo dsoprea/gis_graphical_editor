@@ -312,6 +312,9 @@ class MainWindow:
     self._time_slider_panel = None
     self._remove_track_metadata_panel()
 
+    if self._segment_list_panel is not None:
+      self._segment_list_panel.set_highlighted_segment_index(None)
+
   def _remove_map_widget(self):
     """Tear down the map, slider, cached icons, and loaded point data."""
 
@@ -556,6 +559,9 @@ class MainWindow:
     self._time_slider_panel.pack(side=tkinter.TOP, fill=tkinter.X, before=self._map_widget)
     self._setup_track_metadata_panel_if_needed(gpx_points)
 
+    if self._last_slider_timestamp is not None:
+      self._update_segment_list_slider_highlight(self._last_slider_timestamp)
+
   def _update_track_metadata_for_slider_timestamp(self, selected_timestamp):
     """Refresh the point and segment metadata boxes for the slider time."""
 
@@ -586,6 +592,23 @@ class MainWindow:
     self._track_metadata_panel.set_point_metadata(point_metadata_lines)
     self._track_metadata_panel.set_segment_metadata(segment_metadata_lines)
 
+  def _update_segment_list_slider_highlight(self, selected_timestamp):
+    """Highlight the segment row that contains the slider's current timestamp."""
+
+    if self._segment_list_panel is None:
+      return
+
+    if not self._track_display_options.show_time_slider:
+      return
+
+    segment_summaries = self._segment_list_panel.get_segment_summaries()
+    segment_index = \
+      gis_graphical_editor.track_analysis.find_track_segment_summary_index_at_timestamp(
+        segment_summaries,
+        selected_timestamp,
+      )
+    self._segment_list_panel.set_highlighted_segment_index(segment_index)
+
   def _handle_slider_timestamp_changed(self, selected_timestamp):
     """Move the slider pointer and keep the selected track point on screen."""
 
@@ -607,6 +630,7 @@ class MainWindow:
     self._update_slider_position_marker(latitude, longitude)
     self._ensure_map_shows_position(latitude, longitude)
     self._update_track_metadata_for_slider_timestamp(selected_timestamp)
+    self._update_segment_list_slider_highlight(selected_timestamp)
 
   def _update_slider_position_marker(self, latitude, longitude):
     """Create or reposition the large red dot for the current slider time."""

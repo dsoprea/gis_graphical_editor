@@ -520,6 +520,124 @@ def test_find_segment_summary_for_gpx_point_matches_by_identity():
   assert segment_summary is second_segment
 
 
+def test_find_track_segment_summary_index_at_timestamp_returns_middle_segment():
+  first_segment = gis_graphical_editor.track_analysis.TrackSegmentSummary(
+    [],
+    datetime.datetime(2024, 6, 1, 8, 0, 0),
+    datetime.datetime(2024, 6, 1, 9, 0, 0),
+  )
+  second_segment = gis_graphical_editor.track_analysis.TrackSegmentSummary(
+    [],
+    datetime.datetime(2024, 6, 1, 10, 0, 0),
+    datetime.datetime(2024, 6, 1, 11, 0, 0),
+  )
+  third_segment = gis_graphical_editor.track_analysis.TrackSegmentSummary(
+    [],
+    datetime.datetime(2024, 6, 1, 12, 0, 0),
+    datetime.datetime(2024, 6, 1, 13, 0, 0),
+  )
+  segment_summaries = [first_segment, second_segment, third_segment]
+  target_timestamp = datetime.datetime(2024, 6, 1, 10, 30, 0)
+
+  segment_index = \
+    gis_graphical_editor.track_analysis.find_track_segment_summary_index_at_timestamp(
+      segment_summaries,
+      target_timestamp,
+    )
+
+  assert segment_index == 1
+
+
+def test_find_track_segment_summary_index_at_timestamp_returns_none_before_first_segment():
+  first_segment = gis_graphical_editor.track_analysis.TrackSegmentSummary(
+    [],
+    datetime.datetime(2024, 6, 1, 8, 0, 0),
+    datetime.datetime(2024, 6, 1, 9, 0, 0),
+  )
+  target_timestamp = datetime.datetime(2024, 6, 1, 7, 0, 0)
+
+  segment_index = \
+    gis_graphical_editor.track_analysis.find_track_segment_summary_index_at_timestamp(
+      [first_segment],
+      target_timestamp,
+    )
+
+  assert segment_index is None
+
+
+def test_find_track_segment_summary_index_at_timestamp_returns_none_after_last_segment():
+  last_segment = gis_graphical_editor.track_analysis.TrackSegmentSummary(
+    [],
+    datetime.datetime(2024, 6, 1, 8, 0, 0),
+    datetime.datetime(2024, 6, 1, 9, 0, 0),
+  )
+  target_timestamp = datetime.datetime(2024, 6, 1, 10, 0, 0)
+
+  segment_index = \
+    gis_graphical_editor.track_analysis.find_track_segment_summary_index_at_timestamp(
+      [last_segment],
+      target_timestamp,
+    )
+
+  assert segment_index is None
+
+
+def test_find_track_segment_summary_index_at_timestamp_returns_none_in_gap():
+  first_segment = gis_graphical_editor.track_analysis.TrackSegmentSummary(
+    [],
+    datetime.datetime(2024, 6, 1, 8, 0, 0),
+    datetime.datetime(2024, 6, 1, 9, 0, 0),
+  )
+  second_segment = gis_graphical_editor.track_analysis.TrackSegmentSummary(
+    [],
+    datetime.datetime(2024, 6, 1, 10, 0, 0),
+    datetime.datetime(2024, 6, 1, 11, 0, 0),
+  )
+  target_timestamp = datetime.datetime(2024, 6, 1, 9, 30, 0)
+
+  segment_index = \
+    gis_graphical_editor.track_analysis.find_track_segment_summary_index_at_timestamp(
+      [first_segment, second_segment],
+      target_timestamp,
+    )
+
+  assert segment_index is None
+
+
+def test_find_track_segment_summary_index_at_timestamp_skips_untimed_segment():
+  untimed_segment = gis_graphical_editor.track_analysis.TrackSegmentSummary(
+    [],
+    None,
+    None,
+  )
+  timed_segment = gis_graphical_editor.track_analysis.TrackSegmentSummary(
+    [],
+    datetime.datetime(2024, 6, 1, 10, 0, 0),
+    datetime.datetime(2024, 6, 1, 11, 0, 0),
+  )
+  target_timestamp = datetime.datetime(2024, 6, 1, 10, 30, 0)
+
+  segment_index = \
+    gis_graphical_editor.track_analysis.find_track_segment_summary_index_at_timestamp(
+      [untimed_segment, timed_segment],
+      target_timestamp,
+    )
+
+  assert segment_index == 1
+
+
+def test_find_track_segment_summary_index_at_timestamp_returns_none_for_empty_list():
+  target_timestamp = datetime.datetime(2024, 6, 1, 10, 0, 0)
+
+  segment_index = \
+    gis_graphical_editor.track_analysis.find_track_segment_summary_index_at_timestamp(
+      [],
+      target_timestamp,
+    )
+
+  assert segment_index is None
+
+
 def test_format_gpx_point_metadata_lines_includes_additional_metadata():
   gpx_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
     40.0,

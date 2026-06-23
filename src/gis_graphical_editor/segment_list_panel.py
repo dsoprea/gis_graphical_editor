@@ -9,6 +9,8 @@ import gis_graphical_editor.track_analysis
 _CHECKBUTTON_EXTRA_WIDTH = 30
 _PANEL_HORIZONTAL_PADDING = 24
 _MIN_PANEL_WIDTH = 400
+_INNER_LIST_BACKGROUND = "#f5f5f5"
+_CURRENT_SEGMENT_BACKGROUND = "#c8c8c8"
 
 
 class SegmentListPanel(tkinter.Frame):
@@ -42,6 +44,7 @@ class SegmentListPanel(tkinter.Frame):
     self._segment_summaries = segment_summaries
     self._on_selection_changed = on_selection_changed
     self._selection_variables = []
+    self._segment_checkbuttons = []
     self.pack_propagate(False)
     self._build_widgets(segment_labels)
     self._populate_segment_checkbuttons(segment_labels)
@@ -61,6 +64,33 @@ class SegmentListPanel(tkinter.Frame):
         selected_gpx_points.append(gpx_point)
 
     return selected_gpx_points
+
+  def get_segment_summaries(self):
+    """Return the segment summaries backing this checklist."""
+
+    return self._segment_summaries
+
+  def set_highlighted_segment_index(self, segment_index):
+    """Paint one row darker gray when the slider is on that segment, else light gray."""
+
+    # Reset every row to the default inner-list background.
+    for segment_checkbutton in self._segment_checkbuttons:
+      segment_checkbutton.config(
+        bg=_INNER_LIST_BACKGROUND,
+        activebackground=_INNER_LIST_BACKGROUND,
+      )
+
+    if segment_index is None:
+      return
+
+    if segment_index < 0 or segment_index >= len(self._segment_checkbuttons):
+      return
+
+    highlighted_checkbutton = self._segment_checkbuttons[segment_index]
+    highlighted_checkbutton.config(
+      bg=_CURRENT_SEGMENT_BACKGROUND,
+      activebackground=_CURRENT_SEGMENT_BACKGROUND,
+    )
 
   def find_segment_summary_for_gpx_point(self, gpx_point):
     """Return the segment summary that owns gpx_point, if any."""
@@ -85,12 +115,13 @@ class SegmentListPanel(tkinter.Frame):
     self._segment_canvas = tkinter.Canvas(
       list_container,
       highlightthickness=0,
+      bg=_INNER_LIST_BACKGROUND,
       yscrollcommand=scrollbar.set,
     )
     self._segment_canvas.pack(side=tkinter.LEFT, fill=tkinter.BOTH, expand=True)
     scrollbar.config(command=self._segment_canvas.yview)
 
-    self._segment_checkbox_frame = tkinter.Frame(self._segment_canvas)
+    self._segment_checkbox_frame = tkinter.Frame(self._segment_canvas, bg=_INNER_LIST_BACKGROUND)
     canvas_window = self._segment_canvas.create_window(
       (0, 0),
       window=self._segment_checkbox_frame,
@@ -118,9 +149,12 @@ class SegmentListPanel(tkinter.Frame):
         variable=selection_variable,
         anchor=tkinter.W,
         justify=tkinter.LEFT,
+        bg=_INNER_LIST_BACKGROUND,
+        activebackground=_INNER_LIST_BACKGROUND,
         command=self._handle_selection_changed,
       )
       segment_checkbutton.pack(fill=tkinter.X, anchor=tkinter.W)
+      self._segment_checkbuttons.append(segment_checkbutton)
 
   def _handle_selection_changed(self):
     """Notify the main window when the visible segment set changes."""

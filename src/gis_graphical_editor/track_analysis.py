@@ -734,6 +734,20 @@ def find_gpx_point_nearest_timestamp(gpx_points, target_timestamp):
   return nearest_gpx_point
 
 
+def find_track_segment_summary_index_at_timestamp(segment_summaries, target_timestamp):
+  """Return the index of the summary whose timestamp span contains target_timestamp."""
+
+  # Match the first timed segment whose closed interval includes the slider time.
+  for segment_index, segment_summary in enumerate(segment_summaries):
+    if segment_summary.earliest_timestamp is None or segment_summary.latest_timestamp is None:
+      continue
+
+    if segment_summary.earliest_timestamp <= target_timestamp <= segment_summary.latest_timestamp:
+      return segment_index
+
+  return None
+
+
 def find_segment_summary_for_gpx_point(segment_summaries, gpx_point):
   """Return the segment summary whose point list contains gpx_point by identity."""
 
