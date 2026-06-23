@@ -62,11 +62,6 @@ def main(argv=None):
     help="Load this GPX file immediately on startup.",
   )
   argument_parser.add_argument(
-    "--slider",
-    action="store_true",
-    help="Show a time slider and red pointer along the track.",
-  )
-  argument_parser.add_argument(
     "--as-timezone",
     metavar="IANA_NAME",
     type=_parse_iana_timezone_name,
@@ -106,7 +101,6 @@ def main(argv=None):
     show_points=arguments.points,
     show_mark_labels=not arguments.no_mark_labels,
     initial_gpx_filepath=arguments.filepath,
-    show_time_slider=arguments.slider,
     as_timezone_name=arguments.as_timezone,
     show_dates_in_mark_labels=arguments.dates,
     use_metric_units=arguments.metric,

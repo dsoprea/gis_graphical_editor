@@ -228,10 +228,9 @@ class MainWindow:
         message = "GPX file has no timestamps, so --mark-hours markers cannot be drawn."
         tkinter.messagebox.showwarning("Load GPX", message, parent=self._root)
 
-    if self._track_display_options.show_time_slider:
-      if not gis_graphical_editor.track_analysis.has_timestamps(gpx_points):
-        message = "GPX file has no timestamps, so --slider cannot be used."
-        tkinter.messagebox.showwarning("Load GPX", message, parent=self._root)
+    if not gis_graphical_editor.track_analysis.has_timestamps(gpx_points):
+      message = "GPX file has no timestamps, so the time slider cannot be shown."
+      tkinter.messagebox.showwarning("Load GPX", message, parent=self._root)
 
     self._loaded_gpx_segments = gpx_segments
     self._display_gpx_points(gpx_points)
@@ -505,12 +504,9 @@ class MainWindow:
     self._segment_list_panel.pack(side=tkinter.BOTTOM, fill=tkinter.BOTH, expand=True)
 
   def _setup_track_metadata_panel_if_needed(self, gpx_points):
-    """Mount point and segment metadata boxes when --slider has a timestamp range."""
+    """Mount point and segment metadata boxes when the track has a timestamp range."""
 
     self._remove_track_metadata_panel()
-
-    if not self._track_display_options.show_time_slider:
-      return
 
     timestamp_range = gis_graphical_editor.track_analysis.get_timestamp_range(gpx_points)
 
@@ -537,12 +533,9 @@ class MainWindow:
       self._update_track_metadata_for_slider_timestamp(self._last_slider_timestamp)
 
   def _setup_time_slider_if_needed(self, gpx_points):
-    """Mount the --slider panel when timestamps span a usable range."""
+    """Mount the time slider when timestamps span a usable range."""
 
     self._remove_time_slider_panel()
-
-    if not self._track_display_options.show_time_slider:
-      return
 
     timestamp_range = gis_graphical_editor.track_analysis.get_timestamp_range(gpx_points)
 
@@ -596,9 +589,6 @@ class MainWindow:
     """Highlight the segment row that contains the slider's current timestamp."""
 
     if self._segment_list_panel is None:
-      return
-
-    if not self._track_display_options.show_time_slider:
       return
 
     segment_summaries = self._segment_list_panel.get_segment_summaries()
