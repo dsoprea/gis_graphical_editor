@@ -23,3 +23,11 @@ def test_track_display_options_stores_initial_gpx_filepath():
   )
 
   assert track_display_options.initial_gpx_filepath == "/tmp/track.gpx"
+
+
+def test_track_display_options_stores_as_timezone_name():
+  track_display_options = gis_graphical_editor.track_display_options.TrackDisplayOptions(
+    as_timezone_name="America/Chicago",
+  )
+
+  assert track_display_options.as_timezone_name == "America/Chicago"

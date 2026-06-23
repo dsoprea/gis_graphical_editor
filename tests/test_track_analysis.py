@@ -74,3 +74,23 @@ def test_get_timestamp_range_returns_earliest_and_latest():
 
   assert timestamp_range[0] == datetime.datetime(2024, 6, 1, 8, 0, 0)
   assert timestamp_range[1] == datetime.datetime(2024, 6, 1, 12, 0, 0)
+
+
+def test_format_distance_interval_marker_label_includes_timezone_when_aware():
+  marker_timestamp = datetime.datetime(
+    2024,
+    6,
+    1,
+    8,
+    0,
+    0,
+    tzinfo=datetime.timezone(datetime.timedelta(hours=-4)),
+  )
+
+  label_text = gis_graphical_editor.track_analysis.format_distance_interval_marker_label(
+    10,
+    marker_timestamp,
+  )
+
+  assert label_text.startswith("10 mi,")
+  assert "UTC-04:00" in label_text

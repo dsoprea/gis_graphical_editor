@@ -115,7 +115,7 @@ class TimeSliderPanel(tkinter.Frame):
 
     selected_seconds = float(scale_value)
     selected_timestamp = self._build_selected_timestamp(selected_seconds)
-    current_label_text = selected_timestamp.strftime(_TIMESTAMP_FORMAT)
+    current_label_text = format_slider_endpoint_timestamp(selected_timestamp)
 
     self._current_time_label.config(text=current_label_text)
     self._on_timestamp_changed(selected_timestamp)

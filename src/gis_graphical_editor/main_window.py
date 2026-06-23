@@ -186,6 +186,22 @@ class MainWindow:
 
       return
 
+    # Convert timestamps for display when --as-timezone was requested.
+    if self._track_display_options.as_timezone_name is not None:
+      conversion_result = \
+        gis_graphical_editor.gpx_utility.convert_gpx_point_timestamps_to_timezone(
+          gpx_points,
+          self._track_display_options.as_timezone_name)
+      gpx_points = conversion_result[0]
+      encountered_naive_timestamp = conversion_result[1]
+
+      if encountered_naive_timestamp:
+        message = \
+          "This GPX file has timestamps without timezone information. " \
+          "They will be interpreted as UTC before converting to {timezone_name}.".format(
+            timezone_name=self._track_display_options.as_timezone_name)
+        tkinter.messagebox.showwarning("Load GPX", message, parent=self._root)
+
     # Warn when timestamp-dependent CLI options cannot be honored.
     if self._track_display_options.mark_hours_interval is not None:
       if not gis_graphical_editor.track_analysis.has_timestamps(gpx_points):

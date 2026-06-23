@@ -1,5 +1,6 @@
 """Tests for gpx_utility GPX loading helpers."""
 
+import datetime
 import os
 
 import gpxpy
@@ -25,3 +26,42 @@ def test_load_track_points_from_gpx_reads_track_segment(tmp_path):
   track_points = gis_graphical_editor.gpx_utility.load_track_points_from_gpx(gpx_path)
 
   assert track_points == [(40.0, -105.0), (40.1, -105.1)]
+
+
+def test_convert_gpx_point_timestamps_to_timezone_shifts_aware_utc_to_denver():
+  utc_timestamp = datetime.datetime(2024, 6, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)
+  gpx_points = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(40.0, -105.0, utc_timestamp),
+  ]
+
+  converted_points, encountered_naive_timestamp = \
+    gis_graphical_editor.gpx_utility.convert_gpx_point_timestamps_to_timezone(
+      gpx_points,
+      "America/Denver")
+
+  assert encountered_naive_timestamp is False
+  assert converted_points[0].timestamp == datetime.datetime(
+    2024,
+    6,
+    1,
+    6,
+    0,
+    0,
+    tzinfo=datetime.timezone(datetime.timedelta(hours=-6)),
+  )
+
+
+def test_convert_gpx_point_timestamps_to_timezone_treats_naive_as_utc():
+  naive_timestamp = datetime.datetime(2024, 6, 1, 12, 0, 0)
+  gpx_points = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(40.0, -105.0, naive_timestamp),
+  ]
+
+  converted_points, encountered_naive_timestamp = \
+    gis_graphical_editor.gpx_utility.convert_gpx_point_timestamps_to_timezone(
+      gpx_points,
+      "America/New_York")
+
+  assert encountered_naive_timestamp is True
+  assert converted_points[0].timestamp.hour == 8
+  assert converted_points[0].timestamp.tzinfo is not None

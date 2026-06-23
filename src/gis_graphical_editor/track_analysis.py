@@ -4,6 +4,7 @@ import datetime
 import math
 
 import gis_graphical_editor.gpx_utility
+import gis_graphical_editor.time_slider_panel
 
 _EARTH_RADIUS_MILES = 3958.8
 _MILES_LABEL = "mi"
@@ -193,7 +194,8 @@ def format_distance_interval_marker_label(total_miles, marker_timestamp):
   if marker_timestamp is None:
     return miles_text
 
-  timestamp_text = marker_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+  timestamp_text = \
+    gis_graphical_editor.time_slider_panel.format_slider_endpoint_timestamp(marker_timestamp)
 
   return "{miles_text}, {timestamp_text}".format(
     miles_text=miles_text,

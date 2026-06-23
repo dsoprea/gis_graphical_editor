@@ -4,11 +4,26 @@ import argparse
 import logging
 import sys
 import tkinter
+import zoneinfo
 
 import gis_graphical_editor.main_window
 import gis_graphical_editor.track_display_options
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _parse_iana_timezone_name(timezone_name):
+  """Validate timezone_name as an IANA zone and return it for argparse."""
+
+  try:
+    zoneinfo.ZoneInfo(timezone_name)
+  except zoneinfo.ZoneInfoNotFoundError:
+    message = '"{timezone_name}" is not a valid IANA timezone name.'.format(
+      timezone_name=timezone_name,
+    )
+    raise argparse.ArgumentTypeError(message)
+
+  return timezone_name
 
 
 def main(argv=None):
@@ -51,6 +66,12 @@ def main(argv=None):
     action="store_true",
     help="Show a time slider and red pointer along the track.",
   )
+  argument_parser.add_argument(
+    "--as-timezone",
+    metavar="IANA_NAME",
+    type=_parse_iana_timezone_name,
+    help="Display all timestamps in this IANA timezone (e.g. America/Denver).",
+  )
 
   if argv is None:
     arguments = argument_parser.parse_args()
@@ -71,6 +92,7 @@ def main(argv=None):
     show_mark_labels=not arguments.no_mark_labels,
     initial_gpx_filepath=arguments.filepath,
     show_time_slider=arguments.slider,
+    as_timezone_name=arguments.as_timezone,
   )
 
   root = tkinter.Tk()

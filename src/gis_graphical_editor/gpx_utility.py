@@ -1,5 +1,8 @@
 """Parse GPX files into point records with coordinates and timestamps."""
 
+import datetime
+import zoneinfo
+
 import gpxpy
 
 
@@ -58,6 +61,28 @@ def load_track_points_from_gpx(gpx_path):
     track_points.append((gpx_point.latitude, gpx_point.longitude))
 
   return track_points
+
+
+def convert_gpx_point_timestamps_to_timezone(gpx_points, timezone_name):
+  """Rewrite each point timestamp into timezone_name; return naive-encountered flag."""
+
+  target_zone = zoneinfo.ZoneInfo(timezone_name)
+  encountered_naive_timestamp = False
+
+  # Shift every timed point into the display timezone.
+  for gpx_point in gpx_points:
+    if gpx_point.timestamp is None:
+      continue
+
+    if gpx_point.timestamp.tzinfo is None:
+      encountered_naive_timestamp = True
+      utc_timestamp = gpx_point.timestamp.replace(tzinfo=datetime.timezone.utc)
+      gpx_point.timestamp = utc_timestamp.astimezone(target_zone)
+      continue
+
+    gpx_point.timestamp = gpx_point.timestamp.astimezone(target_zone)
+
+  return gpx_points, encountered_naive_timestamp
 
 
 def _build_gpx_point_record(gpx_point):
