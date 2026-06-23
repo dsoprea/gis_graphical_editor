@@ -25,6 +25,27 @@ def test_build_hour_interval_markers_labels_total_hours_and_miles():
   assert interval_markers[0].label.startswith("1 h,")
   assert interval_markers[1].label.startswith("2 h,")
   assert "mi" in interval_markers[0].label
+  assert "09:00:00" in interval_markers[0].label
+  assert "2024-06-01" not in interval_markers[0].label
+
+
+def test_build_hour_interval_markers_includes_date_when_requested():
+  start_timestamp = datetime.datetime(2024, 6, 1, 8, 0, 0)
+  middle_timestamp = datetime.datetime(2024, 6, 1, 9, 0, 0)
+  end_timestamp = datetime.datetime(2024, 6, 1, 10, 0, 0)
+  gpx_points = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(40.0, -105.0, start_timestamp),
+    gis_graphical_editor.gpx_utility.GpxPointRecord(40.01, -105.01, middle_timestamp),
+    gis_graphical_editor.gpx_utility.GpxPointRecord(40.02, -105.02, end_timestamp),
+  ]
+
+  interval_markers = gis_graphical_editor.track_analysis.build_hour_interval_markers(
+    gpx_points,
+    1,
+    show_dates=True,
+  )
+
+  assert "2024-06-01 09:00:00" in interval_markers[0].label
 
 
 def test_build_distance_interval_markers_labels_total_miles_and_timestamp():
@@ -42,6 +63,24 @@ def test_build_distance_interval_markers_labels_total_miles_and_timestamp():
 
   assert len(interval_markers) >= 1
   assert interval_markers[0].label.startswith("10 mi,")
+  assert "08:" in interval_markers[0].label
+  assert "2024-06-01" not in interval_markers[0].label
+
+
+def test_build_distance_interval_markers_includes_date_when_requested():
+  start_timestamp = datetime.datetime(2024, 6, 1, 8, 0, 0)
+  end_timestamp = datetime.datetime(2024, 6, 1, 8, 30, 0)
+  gpx_points = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(40.0, -105.0, start_timestamp),
+    gis_graphical_editor.gpx_utility.GpxPointRecord(40.5, -105.5, end_timestamp),
+  ]
+
+  interval_markers = gis_graphical_editor.track_analysis.build_distance_interval_markers(
+    gpx_points,
+    10,
+    show_dates=True,
+  )
+
   assert "2024-06-01" in interval_markers[0].label
 
 
@@ -76,7 +115,7 @@ def test_get_timestamp_range_returns_earliest_and_latest():
   assert timestamp_range[1] == datetime.datetime(2024, 6, 1, 12, 0, 0)
 
 
-def test_format_distance_interval_marker_label_includes_timezone_when_aware():
+def test_format_distance_interval_marker_label_omits_timezone_when_aware():
   marker_timestamp = datetime.datetime(
     2024,
     6,
@@ -92,5 +131,4 @@ def test_format_distance_interval_marker_label_includes_timezone_when_aware():
     marker_timestamp,
   )
 
-  assert label_text.startswith("10 mi,")
-  assert "UTC-04:00" in label_text
+  assert label_text == "10 mi, 08:00:00"

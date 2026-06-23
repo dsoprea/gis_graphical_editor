@@ -13,6 +13,7 @@ class TrackDisplayOptions:
     initial_gpx_filepath=None,
     show_time_slider=False,
     as_timezone_name=None,
+    show_dates_in_mark_labels=False,
   ):
     """Capture display flags parsed from the gge command line."""
 
@@ -23,3 +24,4 @@ class TrackDisplayOptions:
     self.initial_gpx_filepath = initial_gpx_filepath
     self.show_time_slider = show_time_slider
     self.as_timezone_name = as_timezone_name
+    self.show_dates_in_mark_labels = show_dates_in_mark_labels

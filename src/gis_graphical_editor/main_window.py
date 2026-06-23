@@ -309,6 +309,7 @@ class MainWindow:
       hour_interval_markers = gis_graphical_editor.track_analysis.build_hour_interval_markers(
         gpx_points,
         self._track_display_options.mark_hours_interval,
+        self._track_display_options.show_dates_in_mark_labels,
       )
       self._display_hour_interval_markers(hour_interval_markers)
 
@@ -316,6 +317,7 @@ class MainWindow:
       distance_interval_markers = gis_graphical_editor.track_analysis.build_distance_interval_markers(
         gpx_points,
         self._track_display_options.mark_distance_interval,
+        self._track_display_options.show_dates_in_mark_labels,
       )
       self._display_distance_interval_markers(distance_interval_markers)
 

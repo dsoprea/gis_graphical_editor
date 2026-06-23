@@ -31,3 +31,11 @@ def test_track_display_options_stores_as_timezone_name():
   )
 
   assert track_display_options.as_timezone_name == "America/Chicago"
+
+
+def test_track_display_options_stores_show_dates_in_mark_labels():
+  track_display_options = gis_graphical_editor.track_display_options.TrackDisplayOptions(
+    show_dates_in_mark_labels=True,
+  )
+
+  assert track_display_options.show_dates_in_mark_labels is True

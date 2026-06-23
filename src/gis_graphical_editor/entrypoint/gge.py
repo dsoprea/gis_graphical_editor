@@ -72,6 +72,11 @@ def main(argv=None):
     type=_parse_iana_timezone_name,
     help="Display all timestamps in this IANA timezone (e.g. America/Denver).",
   )
+  argument_parser.add_argument(
+    "--dates",
+    action="store_true",
+    help="Include calendar dates in --mark-hours and --mark-distance marker labels.",
+  )
 
   if argv is None:
     arguments = argument_parser.parse_args()
@@ -93,6 +98,7 @@ def main(argv=None):
     initial_gpx_filepath=arguments.filepath,
     show_time_slider=arguments.slider,
     as_timezone_name=arguments.as_timezone,
+    show_dates_in_mark_labels=arguments.dates,
   )
 
   root = tkinter.Tk()

@@ -22,7 +22,7 @@ class TrackIntervalMarker:
     self.label = label
 
 
-def build_hour_interval_markers(gpx_points, interval_hours):
+def build_hour_interval_markers(gpx_points, interval_hours, show_dates=False):
   """Return orange hour-interval markers with total hours and miles labels."""
 
   if interval_hours <= 0:
@@ -61,7 +61,13 @@ def build_hour_interval_markers(gpx_points, interval_hours):
       latitude = previous_point.latitude + fraction * (current_point.latitude - previous_point.latitude)
       longitude = previous_point.longitude + fraction * (current_point.longitude - previous_point.longitude)
       marker_miles = segment_start_miles + fraction * segment_miles
-      label = format_hour_interval_marker_label(next_target_hours, marker_miles)
+      marker_timestamp = interpolate_timestamp(previous_point, current_point, fraction)
+      label = format_hour_interval_marker_label(
+        next_target_hours,
+        marker_miles,
+        marker_timestamp,
+        show_dates,
+      )
 
       interval_markers.append(
         TrackIntervalMarker(
@@ -76,7 +82,7 @@ def build_hour_interval_markers(gpx_points, interval_hours):
   return interval_markers
 
 
-def build_distance_interval_markers(gpx_points, interval_miles):
+def build_distance_interval_markers(gpx_points, interval_miles, show_dates=False):
   """Return red distance-interval markers with total miles and timestamp labels."""
 
   if interval_miles <= 0:
@@ -103,7 +109,11 @@ def build_distance_interval_markers(gpx_points, interval_miles):
       latitude = previous_point.latitude + fraction * (current_point.latitude - previous_point.latitude)
       longitude = previous_point.longitude + fraction * (current_point.longitude - previous_point.longitude)
       marker_timestamp = interpolate_timestamp(previous_point, current_point, fraction)
-      label = format_distance_interval_marker_label(next_target_miles, marker_timestamp)
+      label = format_distance_interval_marker_label(
+        next_target_miles,
+        marker_timestamp,
+        show_dates,
+      )
 
       interval_markers.append(
         TrackIntervalMarker(
@@ -162,8 +172,8 @@ def interpolate_timestamp(first_point, second_point, fraction):
   return None
 
 
-def format_hour_interval_marker_label(total_hours, total_miles):
-  """Format the --mark-hours marker label with integer hours and miles."""
+def format_hour_interval_marker_label(total_hours, total_miles, marker_timestamp=None, show_dates=False):
+  """Format the --mark-hours marker label with hours, miles, and optional timestamp."""
 
   hours_display = int(round(total_hours))
   miles_display = int(round(total_miles))
@@ -176,13 +186,27 @@ def format_hour_interval_marker_label(total_hours, total_miles):
     miles_label=_MILES_LABEL,
   )
 
-  return "{hours_text}, {miles_text}".format(
+  label_text = "{hours_text}, {miles_text}".format(
     hours_text=hours_text,
     miles_text=miles_text,
   )
 
+  if marker_timestamp is None:
+    return label_text
 
-def format_distance_interval_marker_label(total_miles, marker_timestamp):
+  timestamp_text = \
+    gis_graphical_editor.time_slider_panel.format_display_timestamp(
+      marker_timestamp,
+      include_date=show_dates,
+    )
+
+  return "{label_text}, {timestamp_text}".format(
+    label_text=label_text,
+    timestamp_text=timestamp_text,
+  )
+
+
+def format_distance_interval_marker_label(total_miles, marker_timestamp, show_dates=False):
   """Format the --mark-distance marker label with integer miles and a timestamp."""
 
   miles_display = int(round(total_miles))
@@ -195,7 +219,10 @@ def format_distance_interval_marker_label(total_miles, marker_timestamp):
     return miles_text
 
   timestamp_text = \
-    gis_graphical_editor.time_slider_panel.format_slider_endpoint_timestamp(marker_timestamp)
+    gis_graphical_editor.time_slider_panel.format_display_timestamp(
+      marker_timestamp,
+      include_date=show_dates,
+    )
 
   return "{miles_text}, {timestamp_text}".format(
     miles_text=miles_text,

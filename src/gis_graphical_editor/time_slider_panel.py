@@ -5,6 +5,7 @@ import tkinter
 
 
 _TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
+_TIME_ONLY_FORMAT = "%H:%M:%S"
 
 
 def format_timezone_label(timestamp):
@@ -41,10 +42,21 @@ def format_timezone_label(timestamp):
   )
 
 
+def format_display_timestamp(timestamp, include_date=False):
+  """Return a wall-clock string with optional date for interval marker labels."""
+
+  if include_date:
+    timestamp_format = _TIMESTAMP_FORMAT
+  else:
+    timestamp_format = _TIME_ONLY_FORMAT
+
+  return timestamp.strftime(timestamp_format)
+
+
 def format_slider_endpoint_timestamp(timestamp):
   """Return a wall-clock string with timezone for the slider edge labels."""
 
-  timestamp_text = timestamp.strftime(_TIMESTAMP_FORMAT)
+  timestamp_text = format_display_timestamp(timestamp, include_date=True)
   timezone_label = format_timezone_label(timestamp)
 
   if timezone_label == "":
