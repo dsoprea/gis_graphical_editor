@@ -34,6 +34,8 @@ class MainWindow:
   """Tkinter shell that displays GPX tracks on an OpenStreetMap tile layer."""
 
   def __init__(self, root, track_display_options=None):
+    """Wire menus, keyboard shortcuts, and deferred GPX loading into root."""
+
     self._root = root
     self._root.title(_WINDOW_TITLE)
     self._root.geometry("1024x768")
@@ -61,6 +63,8 @@ class MainWindow:
     self._root.after(0, self._load_initial_gpx_file)
 
   def _load_initial_gpx_file(self):
+    """Open --filepath on startup or prompt for a GPX file when none was given."""
+
     if self._track_display_options.initial_gpx_filepath is not None:
       self.load_gpx_file(self._track_display_options.initial_gpx_filepath)
 
@@ -69,6 +73,8 @@ class MainWindow:
     self.prompt_and_load_gpx_file()
 
   def _build_menu_bar(self):
+    """Create the File menu with Load, Close, and Exit actions."""
+
     menu_bar = tkinter.Menu(self._root)
     self._root.config(menu=menu_bar)
 
@@ -96,6 +102,8 @@ class MainWindow:
     )
 
   def _bind_menu_accelerators(self):
+    """Bind keyboard shortcuts that mirror File menu accelerators."""
+
     self._root.bind("<Control-o>", self._handle_load_gpx_shortcut)
     self._root.bind("<Control-O>", self._handle_load_gpx_shortcut)
     self._root.bind("<Control-w>", self._handle_close_gpx_shortcut)
@@ -104,6 +112,8 @@ class MainWindow:
     self._root.bind("<Control-Q>", self._handle_exit_shortcut)
 
   def _update_file_menu_state(self):
+    """Enable Close only while a map with loaded track data is visible."""
+
     if self._file_menu is None:
       return
 
@@ -115,21 +125,29 @@ class MainWindow:
     self._file_menu.entryconfig(_FILE_MENU_CLOSE_INDEX, state=close_state)
 
   def _handle_load_gpx_shortcut(self, event):
+    """Open the GPX file picker from the Ctrl+O shortcut."""
+
     self.prompt_and_load_gpx_file()
 
     return "break"
 
   def _handle_close_gpx_shortcut(self, event):
+    """Unload the current track from the Ctrl+W shortcut."""
+
     self.close_loaded_gpx_file()
 
     return "break"
 
   def _handle_exit_shortcut(self, event):
+    """Quit the application from the Ctrl+Q shortcut."""
+
     self.exit_application()
 
     return "break"
 
   def prompt_and_load_gpx_file(self):
+    """Ask the user to choose a GPX file and load it when selected."""
+
     gpx_path = tkinter.filedialog.askopenfilename(
       parent=self._root,
       title="Load GPX file",
@@ -145,6 +163,8 @@ class MainWindow:
     self.load_gpx_file(gpx_path)
 
   def load_gpx_file(self, gpx_path):
+    """Parse gpx_path and render the track with any enabled CLI overlays."""
+
     if not os.path.isfile(gpx_path):
       message = "File not found: {path}".format(path=gpx_path)
       tkinter.messagebox.showerror("Load GPX", message, parent=self._root)
@@ -166,6 +186,7 @@ class MainWindow:
 
       return
 
+    # Warn when timestamp-dependent CLI options cannot be honored.
     if self._track_display_options.mark_hours_interval is not None:
       if not gis_graphical_editor.track_analysis.has_timestamps(gpx_points):
         message = "GPX file has no timestamps, so --mark-hours markers cannot be drawn."
@@ -179,6 +200,8 @@ class MainWindow:
     self._display_gpx_points(gpx_points)
 
   def _ensure_map_widget(self):
+    """Create the OSM map widget on first use and bind map interactions."""
+
     if self._map_widget is not None:
       return
 
@@ -188,9 +211,13 @@ class MainWindow:
     self._update_file_menu_state()
 
   def _bind_map_widget_events(self):
+    """Attach canvas handlers for map-specific mouse gestures."""
+
     self._map_widget.canvas.bind("<Double-Button-1>", self._handle_map_double_click)
 
   def _handle_map_double_click(self, event):
+    """Zoom in one level centered on the double-clicked map location."""
+
     relative_mouse_x = event.x / self._map_widget.width
     relative_mouse_y = event.y / self._map_widget.height
     new_zoom = self._map_widget.zoom + 1
@@ -202,6 +229,8 @@ class MainWindow:
     )
 
   def _remove_time_slider_panel(self):
+    """Destroy the optional time slider panel when unloading a track."""
+
     if self._time_slider_panel is None:
       return
 
@@ -210,6 +239,8 @@ class MainWindow:
     self._time_slider_panel = None
 
   def _remove_map_widget(self):
+    """Tear down the map, slider, cached icons, and loaded point data."""
+
     if self._map_widget is None:
       return
 
@@ -226,12 +257,16 @@ class MainWindow:
     self._update_file_menu_state()
 
   def close_loaded_gpx_file(self):
+    """Remove the current map view and return to the empty shell state."""
+
     if self._map_widget is None:
       return
 
     self._remove_map_widget()
 
   def _display_gpx_points(self, gpx_points):
+    """Draw the track path, optional overlays, bounds fit, and time slider."""
+
     self._ensure_map_widget()
 
     self._map_widget.delete_all_path()
@@ -268,6 +303,7 @@ class MainWindow:
       )
       self._display_distance_interval_markers(distance_interval_markers)
 
+    # Fit the map to the full track extent before optional slider setup.
     latitudes = [point[0] for point in track_points]
     longitudes = [point[1] for point in track_points]
     position_top_left = (max(latitudes), min(longitudes))
@@ -277,6 +313,8 @@ class MainWindow:
     self._setup_time_slider_if_needed(gpx_points)
 
   def _setup_time_slider_if_needed(self, gpx_points):
+    """Mount the --slider panel when timestamps span a usable range."""
+
     self._remove_time_slider_panel()
 
     if not self._track_display_options.show_time_slider:
@@ -297,6 +335,8 @@ class MainWindow:
     self._time_slider_panel.pack(side=tkinter.TOP, fill=tkinter.X, before=self._map_widget)
 
   def _handle_slider_timestamp_changed(self, selected_timestamp):
+    """Move the slider pointer and keep the selected track point on screen."""
+
     if self._loaded_gpx_points is None or self._map_widget is None:
       return
 
@@ -313,6 +353,8 @@ class MainWindow:
     self._ensure_map_shows_position(latitude, longitude)
 
   def _update_slider_position_marker(self, latitude, longitude):
+    """Create or reposition the large red dot for the current slider time."""
+
     if self._slider_pointer_icon is None:
       self._slider_pointer_icon = gis_graphical_editor.map_icon_utility.create_red_slider_pointer_icon()
 
@@ -329,6 +371,8 @@ class MainWindow:
     self._slider_position_marker.set_position(latitude, longitude)
 
   def _ensure_map_shows_position(self, latitude, longitude):
+    """Pan the map when the slider pointer would fall outside the visible tiles."""
+
     map_zoom = round(self._map_widget.zoom)
     top_left_latitude, top_left_longitude = tkintermapview.utility_functions.osm_to_decimal(
       self._map_widget.upper_left_tile_pos[0],
@@ -359,6 +403,8 @@ class MainWindow:
     self._map_widget.set_position(latitude, longitude)
 
   def _display_recorded_points(self, gpx_points):
+    """Draw --points green dots at every recorded GPX coordinate."""
+
     if self._green_point_icon is None:
       self._green_point_icon = gis_graphical_editor.map_icon_utility.create_green_point_icon()
 
@@ -371,6 +417,8 @@ class MainWindow:
       )
 
   def _display_hour_interval_markers(self, hour_interval_markers):
+    """Place orange --mark-hours dots and optional labels along the track."""
+
     if self._orange_interval_icon is None:
       self._orange_interval_icon = gis_graphical_editor.map_icon_utility.create_orange_interval_icon()
 
@@ -391,6 +439,8 @@ class MainWindow:
       )
 
   def _display_distance_interval_markers(self, distance_interval_markers):
+    """Place red --mark-distance dots and optional labels along the track."""
+
     if self._red_interval_icon is None:
       self._red_interval_icon = gis_graphical_editor.map_icon_utility.create_red_interval_icon()
 
@@ -411,4 +461,6 @@ class MainWindow:
       )
 
   def exit_application(self):
+    """Stop the Tk main loop and close the window."""
+
     self._root.quit()

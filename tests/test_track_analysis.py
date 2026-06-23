@@ -1,3 +1,5 @@
+"""Tests for track_analysis interval markers and timestamp lookup."""
+
 import datetime
 
 import gis_graphical_editor.gpx_utility

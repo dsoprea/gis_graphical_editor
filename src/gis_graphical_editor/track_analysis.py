@@ -14,6 +14,8 @@ class TrackIntervalMarker:
   """Map marker derived from cumulative hours or distance along a GPX path."""
 
   def __init__(self, latitude, longitude, label):
+    """Store map coordinates and the text shown beside the marker."""
+
     self.latitude = latitude
     self.longitude = longitude
     self.label = label
@@ -30,6 +32,7 @@ def build_hour_interval_markers(gpx_points, interval_hours):
   cumulative_miles = 0.0
   next_target_hours = float(interval_hours)
 
+  # Walk each segment and emit markers whenever a target hour boundary is crossed.
   for point_index in range(1, len(gpx_points)):
     previous_point = gpx_points[point_index - 1]
     current_point = gpx_points[point_index]
@@ -82,6 +85,7 @@ def build_distance_interval_markers(gpx_points, interval_miles):
   cumulative_miles = 0.0
   next_target_miles = float(interval_miles)
 
+  # Walk each segment and emit markers whenever a target mile boundary is crossed.
   for point_index in range(1, len(gpx_points)):
     previous_point = gpx_points[point_index - 1]
     current_point = gpx_points[point_index]
@@ -114,6 +118,8 @@ def build_distance_interval_markers(gpx_points, interval_miles):
 
 
 def compute_miles_between_points(first_point, second_point):
+  """Return great-circle miles between two GpxPointRecord coordinates."""
+
   latitude_delta_radians = math.radians(second_point.latitude - first_point.latitude)
   longitude_delta_radians = math.radians(second_point.longitude - first_point.longitude)
   first_latitude_radians = math.radians(first_point.latitude)
@@ -130,12 +136,16 @@ def compute_miles_between_points(first_point, second_point):
 
 
 def compute_hours_between_timestamps(first_timestamp, second_timestamp):
+  """Return elapsed hours between two datetimes."""
+
   elapsed_seconds = (second_timestamp - first_timestamp).total_seconds()
 
   return elapsed_seconds / 3600.0
 
 
 def interpolate_timestamp(first_point, second_point, fraction):
+  """Linearly interpolate a timestamp along a segment when both ends are timed."""
+
   if first_point.timestamp is not None and second_point.timestamp is not None:
     elapsed_seconds = (second_point.timestamp - first_point.timestamp).total_seconds()
     interpolated_seconds = elapsed_seconds * fraction
@@ -152,6 +162,8 @@ def interpolate_timestamp(first_point, second_point, fraction):
 
 
 def format_hour_interval_marker_label(total_hours, total_miles):
+  """Format the --mark-hours marker label with integer hours and miles."""
+
   hours_display = int(round(total_hours))
   miles_display = int(round(total_miles))
   hours_text = "{total_hours} {hours_label}".format(
@@ -170,6 +182,8 @@ def format_hour_interval_marker_label(total_hours, total_miles):
 
 
 def format_distance_interval_marker_label(total_miles, marker_timestamp):
+  """Format the --mark-distance marker label with integer miles and a timestamp."""
+
   miles_display = int(round(total_miles))
   miles_text = "{total_miles} {miles_label}".format(
     total_miles=miles_display,
@@ -188,6 +202,8 @@ def format_distance_interval_marker_label(total_miles, marker_timestamp):
 
 
 def has_timestamps(gpx_points):
+  """Return True when at least one GPX point carries a timestamp."""
+
   for gpx_point in gpx_points:
     if gpx_point.timestamp is not None:
       return True
@@ -196,6 +212,8 @@ def has_timestamps(gpx_points):
 
 
 def get_timestamp_range(gpx_points):
+  """Return earliest and latest timestamps present in the point list."""
+
   earliest_timestamp = None
   latest_timestamp = None
 
@@ -224,6 +242,7 @@ def find_position_at_timestamp(gpx_points, target_timestamp):
   first_timestamped_point = None
   last_timestamped_point = None
 
+  # Resolve track endpoints that bound the searchable timestamp range.
   for gpx_point in gpx_points:
     if gpx_point.timestamp is not None:
       first_timestamped_point = gpx_point
@@ -245,6 +264,7 @@ def find_position_at_timestamp(gpx_points, target_timestamp):
   if target_timestamp >= last_timestamped_point.timestamp:
     return last_timestamped_point.latitude, last_timestamped_point.longitude
 
+  # Interpolate within the segment that contains the target timestamp.
   for point_index in range(1, len(gpx_points)):
     previous_point = gpx_points[point_index - 1]
     current_point = gpx_points[point_index]

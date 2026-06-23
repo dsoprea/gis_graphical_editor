@@ -38,6 +38,7 @@ def create_red_interval_icon():
 def create_red_slider_pointer_icon():
   """Return a larger PhotoImage red dot for the time-slider position."""
 
+  # Draw a larger filled circle so the slider pointer stands out on the track.
   image = PIL.Image.new("RGBA", (_SLIDER_POINTER_ICON_SIZE, _SLIDER_POINTER_ICON_SIZE), (0, 0, 0, 0))
   draw = PIL.ImageDraw.Draw(image)
   draw.ellipse(
@@ -51,6 +52,8 @@ def create_red_slider_pointer_icon():
 
 
 def create_dot_icon(fill_color, outline_color):
+  """Return a transparent PhotoImage with a filled ellipse for map marker icons."""
+
   image = PIL.Image.new("RGBA", (_DOT_ICON_SIZE, _DOT_ICON_SIZE), (0, 0, 0, 0))
   draw = PIL.ImageDraw.Draw(image)
   draw.ellipse(

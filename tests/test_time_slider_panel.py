@@ -1,3 +1,5 @@
+"""Tests for time_slider_panel timestamp label formatting."""
+
 import datetime
 
 import gis_graphical_editor.time_slider_panel

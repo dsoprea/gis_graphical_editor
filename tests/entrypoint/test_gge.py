@@ -1,3 +1,5 @@
+"""Tests for the gge CLI entrypoint."""
+
 import gis_graphical_editor.entrypoint.gge
 
 

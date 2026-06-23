@@ -12,6 +12,8 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def main(argv=None):
+  """Parse CLI flags, build the main window, and start the Tk event loop."""
+
   logging.basicConfig(level=logging.INFO)
 
   argument_parser = argparse.ArgumentParser(
@@ -55,6 +57,7 @@ def main(argv=None):
   else:
     arguments = argument_parser.parse_args(argv)
 
+  # Reject non-positive interval values before constructing the UI.
   if arguments.mark_hours is not None and arguments.mark_hours <= 0:
     argument_parser.error("--mark-hours requires a positive integer.")
 

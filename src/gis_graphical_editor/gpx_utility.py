@@ -7,6 +7,8 @@ class GpxPointRecord:
   """One GPX point with decimal coordinates and an optional timestamp."""
 
   def __init__(self, latitude, longitude, timestamp):
+    """Store latitude, longitude, and an optional aware or naive timestamp."""
+
     self.latitude = latitude
     self.longitude = longitude
     self.timestamp = timestamp
@@ -51,6 +53,7 @@ def load_track_points_from_gpx(gpx_path):
   gpx_points = load_gpx_points_from_gpx(gpx_path)
   track_points = []
 
+  # Project each record down to coordinate pairs for path rendering.
   for gpx_point in gpx_points:
     track_points.append((gpx_point.latitude, gpx_point.longitude))
 
@@ -58,6 +61,8 @@ def load_track_points_from_gpx(gpx_path):
 
 
 def _build_gpx_point_record(gpx_point):
+  """Convert a gpxpy point into a GpxPointRecord preserving timezone when present."""
+
   timestamp = gpx_point.time
 
   return GpxPointRecord(

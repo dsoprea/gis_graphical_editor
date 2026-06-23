@@ -2,7 +2,7 @@
 
 
 class TrackDisplayOptions:
-  """CLI-driven track decoration settings for the map view."""
+  """CLI-driven track decoration and startup settings for the map view."""
 
   def __init__(
     self,
@@ -13,6 +13,8 @@ class TrackDisplayOptions:
     initial_gpx_filepath=None,
     show_time_slider=False,
   ):
+    """Capture display flags parsed from the gge command line."""
+
     self.mark_hours_interval = mark_hours_interval
     self.mark_distance_interval = mark_distance_interval
     self.show_points = show_points

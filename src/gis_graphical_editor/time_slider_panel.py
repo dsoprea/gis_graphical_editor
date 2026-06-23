@@ -8,6 +8,8 @@ _TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
 def format_timezone_label(timestamp):
+  """Return a short timezone label for slider endpoint timestamps."""
+
   if timestamp.tzinfo is None:
     return ""
 
@@ -21,6 +23,7 @@ def format_timezone_label(timestamp):
   if utc_offset is None:
     return ""
 
+  # Format fixed offsets as UTC±HH:MM when tzname is unavailable.
   total_seconds = int(utc_offset.total_seconds())
   offset_sign = "+"
 
@@ -39,6 +42,8 @@ def format_timezone_label(timestamp):
 
 
 def format_slider_endpoint_timestamp(timestamp):
+  """Return a wall-clock string with timezone for the slider edge labels."""
+
   timestamp_text = timestamp.strftime(_TIMESTAMP_FORMAT)
   timezone_label = format_timezone_label(timestamp)
 
@@ -55,6 +60,8 @@ class TimeSliderPanel(tkinter.Frame):
   """Slider row with earliest/latest labels and a centered current-time label."""
 
   def __init__(self, master, earliest_timestamp, latest_timestamp, on_timestamp_changed):
+    """Build the slider UI and invoke on_timestamp_changed as the user scrubs."""
+
     super().__init__(master)
 
     self._earliest_timestamp = earliest_timestamp
@@ -69,6 +76,8 @@ class TimeSliderPanel(tkinter.Frame):
     self._handle_scale_change(str(self._earliest_seconds))
 
   def _build_widgets(self):
+    """Lay out endpoint labels, the scale control, and the current-time label."""
+
     slider_row = tkinter.Frame(self)
     slider_row.pack(fill=tkinter.X, padx=8, pady=(8, 0))
 
@@ -94,12 +103,16 @@ class TimeSliderPanel(tkinter.Frame):
     self._current_time_label.pack(pady=(4, 8))
 
   def _build_selected_timestamp(self, selected_seconds):
+    """Convert slider epoch seconds back into a datetime with track timezone."""
+
     if self._reference_timezone is not None:
       return datetime.datetime.fromtimestamp(selected_seconds, tz=self._reference_timezone)
 
     return datetime.datetime.fromtimestamp(selected_seconds)
 
   def _handle_scale_change(self, scale_value):
+    """Update the centered label and notify the map of the selected timestamp."""
+
     selected_seconds = float(scale_value)
     selected_timestamp = self._build_selected_timestamp(selected_seconds)
     current_label_text = selected_timestamp.strftime(_TIMESTAMP_FORMAT)

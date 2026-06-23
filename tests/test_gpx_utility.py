@@ -1,3 +1,5 @@
+"""Tests for gpx_utility GPX loading helpers."""
+
 import os
 
 import gpxpy

@@ -1,3 +1,5 @@
+"""Tests for TrackDisplayOptions CLI mapping."""
+
 import argparse
 
 import gis_graphical_editor.track_display_options
