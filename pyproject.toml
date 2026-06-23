@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel>=0.43.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gge"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+  "gpxpy>=1.6.0",
+  "tkintermapview>=1.29",
+]
+
+[project.scripts]
+gge = "gis_graphical_editor.entrypoint.gge:main"
+
+[project.optional-dependencies]
+test = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
