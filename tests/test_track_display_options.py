@@ -47,3 +47,11 @@ def test_track_display_options_stores_use_metric_units():
   )
 
   assert track_display_options.use_metric_units is True
+
+
+def test_track_display_options_stores_exclude_idle_segments():
+  track_display_options = gis_graphical_editor.track_display_options.TrackDisplayOptions(
+    exclude_idle_segments=True,
+  )
+
+  assert track_display_options.exclude_idle_segments is True

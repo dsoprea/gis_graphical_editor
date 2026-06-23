@@ -15,6 +15,7 @@ class TrackDisplayOptions:
     as_timezone_name=None,
     show_dates_in_mark_labels=False,
     use_metric_units=False,
+    exclude_idle_segments=False,
   ):
     """Capture display flags parsed from the gge command line."""
 
@@ -27,3 +28,4 @@ class TrackDisplayOptions:
     self.as_timezone_name = as_timezone_name
     self.show_dates_in_mark_labels = show_dates_in_mark_labels
     self.use_metric_units = use_metric_units
+    self.exclude_idle_segments = exclude_idle_segments

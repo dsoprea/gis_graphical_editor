@@ -5,6 +5,7 @@ import tkinter
 
 
 _TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
+_TIMESTAMP_WITH_DAY_OF_WEEK_FORMAT = "%A %Y-%m-%d %H:%M:%S"
 _TIME_ONLY_FORMAT = "%H:%M:%S"
 
 
@@ -42,10 +43,12 @@ def format_timezone_label(timestamp):
   )
 
 
-def format_display_timestamp(timestamp, include_date=False):
+def format_display_timestamp(timestamp, include_date=False, include_day_of_week=False):
   """Return a wall-clock string with optional date for interval marker labels."""
 
-  if include_date:
+  if include_day_of_week:
+    timestamp_format = _TIMESTAMP_WITH_DAY_OF_WEEK_FORMAT
+  elif include_date:
     timestamp_format = _TIMESTAMP_FORMAT
   else:
     timestamp_format = _TIME_ONLY_FORMAT

@@ -10,7 +10,11 @@ _EARTH_RADIUS_MILES = 3958.8
 _EARTH_RADIUS_KILOMETERS = 6371.0
 _MILES_LABEL = "mi"
 _KILOMETERS_LABEL = "km"
+_MILES_PER_HOUR_LABEL = "mph"
+_KILOMETERS_PER_HOUR_LABEL = "kph"
 _HOURS_LABEL = "h"
+_IDLE_VELOCITY_MILES_PER_HOUR = 1.0
+_IDLE_VELOCITY_KILOMETERS_PER_HOUR = 2.0
 
 
 class TrackSegmentSummary:
@@ -36,7 +40,11 @@ class TrackIntervalMarker:
     self.label = label
 
 
-def build_track_segment_summaries(segment_point_lists):
+def build_track_segment_summaries(
+  segment_point_lists,
+  exclude_idle_segments=False,
+  use_metric_units=False,
+):
   """Return segment summaries sorted by earliest timestamp when present."""
 
   segment_summaries = []
@@ -66,7 +74,19 @@ def build_track_segment_summaries(segment_point_lists):
 
   segment_summaries.sort(key=_build_track_segment_summary_sort_key)
 
-  return segment_summaries
+  if not exclude_idle_segments:
+    return segment_summaries
+
+  active_segment_summaries = []
+
+  # Drop segments whose average velocity falls below the idle threshold.
+  for segment_summary in segment_summaries:
+    if is_idle_track_segment_summary(segment_summary, use_metric_units):
+      continue
+
+    active_segment_summaries.append(segment_summary)
+
+  return active_segment_summaries
 
 
 def format_elapsed_duration_between_timestamps(first_timestamp, second_timestamp):
@@ -108,7 +128,146 @@ def compute_total_path_distance_for_gpx_points(gpx_points, use_metric_units=Fals
   return total_distance
 
 
-def format_track_segment_interval_label(segment_summary, use_metric_units=False):
+def compute_average_velocity_for_segment_summary(segment_summary, use_metric_units=False):
+  """Return average path velocity for a segment, or None when it cannot be derived."""
+
+  if segment_summary.earliest_timestamp is None or segment_summary.latest_timestamp is None:
+    return None
+
+  elapsed_timedelta = \
+    segment_summary.latest_timestamp - segment_summary.earliest_timestamp
+  elapsed_seconds = elapsed_timedelta.total_seconds()
+
+  if elapsed_seconds <= 0:
+    return None
+
+  total_distance = compute_total_path_distance_for_gpx_points(
+    segment_summary.segment_points,
+    use_metric_units,
+  )
+  elapsed_hours = elapsed_seconds / 3600.0
+
+  return total_distance / elapsed_hours
+
+
+def is_idle_track_segment_summary(segment_summary, use_metric_units=False):
+  """Return True when a segment's average velocity is below the idle threshold."""
+
+  average_velocity = compute_average_velocity_for_segment_summary(
+    segment_summary,
+    use_metric_units,
+  )
+
+  if average_velocity is None:
+    return True
+
+  return is_idle_velocity(average_velocity, use_metric_units)
+
+
+def is_idle_velocity(velocity, use_metric_units=False):
+  """Return True when a velocity is below the idle threshold."""
+
+  if use_metric_units:
+    return velocity < _IDLE_VELOCITY_KILOMETERS_PER_HOUR
+
+  return velocity < _IDLE_VELOCITY_MILES_PER_HOUR
+
+
+def compute_velocity_between_points(previous_point, current_point, use_metric_units=False):
+  """Return leg velocity between consecutive timed GPX points, or None when unknown."""
+
+  if previous_point.timestamp is None or current_point.timestamp is None:
+    return None
+
+  elapsed_timedelta = current_point.timestamp - previous_point.timestamp
+  elapsed_seconds = elapsed_timedelta.total_seconds()
+
+  if elapsed_seconds <= 0:
+    return None
+
+  leg_distance = compute_distance_between_points(
+    previous_point,
+    current_point,
+    use_metric_units,
+  )
+  elapsed_hours = elapsed_seconds / 3600.0
+
+  return leg_distance / elapsed_hours
+
+
+def collect_leg_velocities_for_gpx_points(
+  gpx_points,
+  use_metric_units=False,
+  exclude_idle_segments=False,
+):
+  """Return leg velocities along a point sequence, optionally omitting idle legs."""
+
+  leg_velocities = []
+
+  # Derive each consecutive leg velocity and apply the idle filter when requested.
+  for point_index in range(1, len(gpx_points)):
+    previous_point = gpx_points[point_index - 1]
+    current_point = gpx_points[point_index]
+    leg_velocity = compute_velocity_between_points(
+      previous_point,
+      current_point,
+      use_metric_units,
+    )
+
+    if leg_velocity is None:
+      continue
+
+    if exclude_idle_segments and is_idle_velocity(leg_velocity, use_metric_units):
+      continue
+
+    leg_velocities.append(leg_velocity)
+
+  return leg_velocities
+
+
+def compute_minimum_velocity_for_segment_summary(
+  segment_summary,
+  use_metric_units=False,
+  exclude_idle_segments=False,
+):
+  """Return the lowest leg velocity in a segment, or None when none qualify."""
+
+  leg_velocities = collect_leg_velocities_for_gpx_points(
+    segment_summary.segment_points,
+    use_metric_units,
+    exclude_idle_segments,
+  )
+
+  if not leg_velocities:
+    return None
+
+  return min(leg_velocities)
+
+
+def compute_maximum_velocity_for_segment_summary(
+  segment_summary,
+  use_metric_units=False,
+  exclude_idle_segments=False,
+):
+  """Return the highest leg velocity in a segment, or None when none qualify."""
+
+  leg_velocities = collect_leg_velocities_for_gpx_points(
+    segment_summary.segment_points,
+    use_metric_units,
+    exclude_idle_segments,
+  )
+
+  if not leg_velocities:
+    return None
+
+  return max(leg_velocities)
+
+
+def format_track_segment_interval_label(
+  segment_summary,
+  use_metric_units=False,
+  exclude_idle_segments=False,
+):
   """Return a segment label with point count, duration, and path distance."""
 
   total_distance = compute_total_path_distance_for_gpx_points(
@@ -118,34 +277,67 @@ def format_track_segment_interval_label(segment_summary, use_metric_units=False)
   distance_text = format_distance_display(total_distance, use_metric_units)
 
   if segment_summary.earliest_timestamp is None or segment_summary.latest_timestamp is None:
-    return "Points: {point_count}, Distance: {distance_text}\nno timestamps".format(
-      point_count=segment_summary.point_count,
-      distance_text=distance_text,
-    )
+    return \
+      "Points: {point_count}\n" \
+      "Distance: {distance_text}\n" \
+      "no timestamps".format(
+        point_count=segment_summary.point_count,
+        distance_text=distance_text,
+      )
 
   earliest_text = \
     gis_graphical_editor.time_slider_panel.format_display_timestamp(
       segment_summary.earliest_timestamp,
       include_date=True,
+      include_day_of_week=True,
     )
   latest_text = \
     gis_graphical_editor.time_slider_panel.format_display_timestamp(
       segment_summary.latest_timestamp,
       include_date=True,
+      include_day_of_week=True,
     )
   duration_text = format_elapsed_duration_between_timestamps(
     segment_summary.earliest_timestamp,
     segment_summary.latest_timestamp,
   )
+  average_velocity = compute_average_velocity_for_segment_summary(
+    segment_summary,
+    use_metric_units,
+  )
+  minimum_velocity = compute_minimum_velocity_for_segment_summary(
+    segment_summary,
+    use_metric_units,
+    exclude_idle_segments,
+  )
+  maximum_velocity = compute_maximum_velocity_for_segment_summary(
+    segment_summary,
+    use_metric_units,
+    exclude_idle_segments,
+  )
+  average_velocity_text = format_velocity_display(average_velocity, use_metric_units)
+  minimum_velocity_text = format_velocity_display(minimum_velocity, use_metric_units)
+  maximum_velocity_text = format_velocity_display(maximum_velocity, use_metric_units)
+  velocity_summary_text = \
+    "AVG {average_velocity_text}, MIN {minimum_velocity_text}, MAX {maximum_velocity_text}".format(
+      average_velocity_text=average_velocity_text,
+      minimum_velocity_text=minimum_velocity_text,
+      maximum_velocity_text=maximum_velocity_text,
+    )
 
   return \
-    "{earliest_text} - {latest_text}\n" \
-    "Points: {point_count}, Interval: {duration_text}, Distance: {distance_text}".format(
+    "Start Timestamp: {earliest_text}\n" \
+    "End Timestamp: {latest_text}\n" \
+    "Points: {point_count}\n" \
+    "Interval: {duration_text}\n" \
+    "Distance: {distance_text}\n" \
+    "Velocity: {velocity_summary_text}".format(
       earliest_text=earliest_text,
       latest_text=latest_text,
       point_count=segment_summary.point_count,
       duration_text=duration_text,
       distance_text=distance_text,
+      velocity_summary_text=velocity_summary_text,
     )
 
 
@@ -416,6 +608,25 @@ def format_distance_display(total_distance, use_metric_units=False):
   )
 
 
+def format_velocity_display(average_velocity, use_metric_units=False):
+  """Return a one-decimal velocity value with the mph or kph unit label."""
+
+  if average_velocity is None:
+    return "n/a"
+
+  velocity_display = "{average_velocity:.1f}".format(average_velocity=average_velocity)
+
+  if use_metric_units:
+    velocity_label = _KILOMETERS_PER_HOUR_LABEL
+  else:
+    velocity_label = _MILES_PER_HOUR_LABEL
+
+  return "{velocity_display} {velocity_label}".format(
+    velocity_display=velocity_display,
+    velocity_label=velocity_label,
+  )
+
+
 def has_timestamps(gpx_points):
   """Return True when at least one GPX point carries a timestamp."""
 
@@ -501,3 +712,133 @@ def find_position_at_timestamp(gpx_points, target_timestamp):
       return latitude, longitude
 
   return last_timestamped_point.latitude, last_timestamped_point.longitude
+
+
+def find_gpx_point_nearest_timestamp(gpx_points, target_timestamp):
+  """Return the timed GPX point closest to target_timestamp."""
+
+  nearest_gpx_point = None
+  smallest_timestamp_delta = None
+
+  # Scan visible points and keep the one with the smallest timestamp distance.
+  for gpx_point in gpx_points:
+    if gpx_point.timestamp is None:
+      continue
+
+    timestamp_delta = abs((gpx_point.timestamp - target_timestamp).total_seconds())
+
+    if smallest_timestamp_delta is None or timestamp_delta < smallest_timestamp_delta:
+      smallest_timestamp_delta = timestamp_delta
+      nearest_gpx_point = gpx_point
+
+  return nearest_gpx_point
+
+
+def find_segment_summary_for_gpx_point(segment_summaries, gpx_point):
+  """Return the segment summary whose point list contains gpx_point by identity."""
+
+  if gpx_point is None:
+    return None
+
+  # Match the owning segment by object identity in its point list.
+  for segment_summary in segment_summaries:
+    for segment_point in segment_summary.segment_points:
+      if segment_point is gpx_point:
+        return segment_summary
+
+  return None
+
+
+def format_gpx_point_metadata_lines(gpx_point):
+  """Return label lines for one GPX point and its additional metadata fields."""
+
+  if gpx_point is None:
+    return []
+
+  metadata_lines = [
+    "latitude: {latitude}".format(latitude=gpx_point.latitude),
+    "longitude: {longitude}".format(longitude=gpx_point.longitude),
+  ]
+
+  if gpx_point.timestamp is None:
+    metadata_lines.append("timestamp: n/a")
+  else:
+    timestamp_text = \
+      gis_graphical_editor.time_slider_panel.format_slider_endpoint_timestamp(
+        gpx_point.timestamp,
+      )
+    metadata_lines.append("timestamp: {timestamp_text}".format(timestamp_text=timestamp_text))
+
+  metadata_keys = sorted(gpx_point.additional_metadata.keys())
+
+  for metadata_key in metadata_keys:
+    metadata_value = gpx_point.additional_metadata[metadata_key]
+    metadata_lines.append(
+      "{metadata_key}: {metadata_value}".format(
+        metadata_key=metadata_key,
+        metadata_value=metadata_value,
+      ),
+    )
+
+  return metadata_lines
+
+
+def format_segment_summary_metadata_lines(segment_summary, use_metric_units=False):
+  """Return label lines for one segment summary and its derived statistics."""
+
+  if segment_summary is None:
+    return []
+
+  metadata_lines = [
+    "point_count: {point_count}".format(point_count=segment_summary.point_count),
+  ]
+  total_distance = compute_total_path_distance_for_gpx_points(
+    segment_summary.segment_points,
+    use_metric_units,
+  )
+  distance_text = format_distance_display(total_distance, use_metric_units)
+  metadata_lines.append("distance: {distance_text}".format(distance_text=distance_text))
+
+  if segment_summary.earliest_timestamp is None or segment_summary.latest_timestamp is None:
+    metadata_lines.append("earliest_timestamp: n/a")
+    metadata_lines.append("latest_timestamp: n/a")
+    metadata_lines.append("interval: n/a")
+    metadata_lines.append("average_velocity: n/a")
+    metadata_lines.append("idle: n/a")
+
+    return metadata_lines
+
+  earliest_text = \
+    gis_graphical_editor.time_slider_panel.format_slider_endpoint_timestamp(
+      segment_summary.earliest_timestamp,
+    )
+  latest_text = \
+    gis_graphical_editor.time_slider_panel.format_slider_endpoint_timestamp(
+      segment_summary.latest_timestamp,
+    )
+  duration_text = format_elapsed_duration_between_timestamps(
+    segment_summary.earliest_timestamp,
+    segment_summary.latest_timestamp,
+  )
+  average_velocity = compute_average_velocity_for_segment_summary(
+    segment_summary,
+    use_metric_units,
+  )
+  average_velocity_text = format_velocity_display(average_velocity, use_metric_units)
+  idle_segment = is_idle_track_segment_summary(segment_summary, use_metric_units)
+
+  metadata_lines.append(
+    "earliest_timestamp: {earliest_text}".format(earliest_text=earliest_text),
+  )
+  metadata_lines.append(
+    "latest_timestamp: {latest_text}".format(latest_text=latest_text),
+  )
+  metadata_lines.append("interval: {duration_text}".format(duration_text=duration_text))
+  metadata_lines.append(
+    "average_velocity: {average_velocity_text}".format(
+      average_velocity_text=average_velocity_text,
+    ),
+  )
+  metadata_lines.append("idle: {idle_segment}".format(idle_segment=idle_segment))
+
+  return metadata_lines

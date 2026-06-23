@@ -15,6 +15,7 @@ import gis_graphical_editor.segment_list_panel
 import gis_graphical_editor.time_slider_panel
 import gis_graphical_editor.track_analysis
 import gis_graphical_editor.track_display_options
+import gis_graphical_editor.track_metadata_panel
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,6 +57,10 @@ class MainWindow:
     self._slider_pointer_icon = None
     self._time_slider_panel = None
     self._segment_list_panel = None
+    self._right_sidebar_frame = None
+    self._track_metadata_panel = None
+    self._last_slider_timestamp = None
+    self._right_sidebar_panel_width = None
     self._slider_position_marker = None
     self._loaded_gpx_points = None
     self._loaded_gpx_segments = None
@@ -263,6 +268,16 @@ class MainWindow:
       relative_pointer_y=relative_mouse_y,
     )
 
+  def _remove_track_metadata_panel(self):
+    """Destroy the optional metadata panel when the slider is unavailable."""
+
+    if self._track_metadata_panel is None:
+      return
+
+    self._track_metadata_panel.pack_forget()
+    self._track_metadata_panel.destroy()
+    self._track_metadata_panel = None
+
   def _remove_segment_list_panel(self):
     """Destroy the optional segment list panel when unloading a track."""
 
@@ -273,6 +288,19 @@ class MainWindow:
     self._segment_list_panel.destroy()
     self._segment_list_panel = None
 
+  def _remove_right_sidebar(self):
+    """Destroy the right sidebar and every panel it contains."""
+
+    self._remove_track_metadata_panel()
+    self._remove_segment_list_panel()
+
+    if self._right_sidebar_frame is None:
+      return
+
+    self._right_sidebar_frame.pack_forget()
+    self._right_sidebar_frame.destroy()
+    self._right_sidebar_frame = None
+
   def _remove_time_slider_panel(self):
     """Destroy the optional time slider panel when unloading a track."""
 
@@ -282,6 +310,7 @@ class MainWindow:
     self._time_slider_panel.pack_forget()
     self._time_slider_panel.destroy()
     self._time_slider_panel = None
+    self._remove_track_metadata_panel()
 
   def _remove_map_widget(self):
     """Tear down the map, slider, cached icons, and loaded point data."""
@@ -290,7 +319,7 @@ class MainWindow:
       return
 
     self._remove_time_slider_panel()
-    self._remove_segment_list_panel()
+    self._remove_right_sidebar()
 
     if self._map_widget is not None:
       self._map_widget.pack_forget()
@@ -309,6 +338,8 @@ class MainWindow:
     self._slider_position_marker = None
     self._loaded_gpx_points = None
     self._loaded_gpx_segments = None
+    self._last_slider_timestamp = None
+    self._right_sidebar_panel_width = None
     self._update_file_menu_state()
 
   def close_loaded_gpx_file(self):
@@ -328,17 +359,38 @@ class MainWindow:
     self._refresh_track_display()
 
   def _get_visible_gpx_points(self):
-    """Return GPX points for checked segments, or the full track when no panel exists."""
+    """Return GPX points for checked segments, applying --no-idle filtering when set."""
 
-    if self._segment_list_panel is None:
+    if self._segment_list_panel is not None:
+      return self._segment_list_panel.get_selected_gpx_points()
+
+    if self._loaded_gpx_segments is None:
       return self._loaded_gpx_points
 
-    return self._segment_list_panel.get_selected_gpx_points()
+    if not self._track_display_options.exclude_idle_segments:
+      return self._loaded_gpx_points
+
+    segment_summaries = \
+      gis_graphical_editor.track_analysis.build_track_segment_summaries(
+        self._loaded_gpx_segments,
+        exclude_idle_segments=True,
+        use_metric_units=self._track_display_options.use_metric_units,
+      )
+    visible_gpx_points = []
+
+    for segment_summary in segment_summaries:
+      for gpx_point in segment_summary.segment_points:
+        visible_gpx_points.append(gpx_point)
+
+    return visible_gpx_points
 
   def _handle_segment_selection_changed(self):
     """Redraw the map when the user toggles segment checkboxes."""
 
     self._refresh_track_display()
+
+    if self._last_slider_timestamp is not None:
+      self._update_track_metadata_for_slider_timestamp(self._last_slider_timestamp)
 
   def _refresh_track_display(self):
     """Draw the path, overlays, bounds, and slider for the currently visible points."""
@@ -399,28 +451,87 @@ class MainWindow:
     self._map_widget.fit_bounding_box(position_top_left, position_bottom_right)
     self._setup_time_slider_if_needed(visible_gpx_points)
 
+  def _ensure_right_sidebar_frame(self):
+    """Create the right sidebar container on first use."""
+
+    if self._right_sidebar_frame is not None:
+      return
+
+    self._right_sidebar_frame = tkinter.Frame(self._main_frame)
+    self._right_sidebar_frame.pack(side=tkinter.RIGHT, fill=tkinter.Y)
+
   def _setup_segment_list_panel(self):
     """Mount the right-side segment checklist when the loaded GPX has segments."""
 
-    self._remove_segment_list_panel()
+    self._remove_right_sidebar()
 
     if self._loaded_gpx_segments is None:
       return
 
     segment_summaries = \
       gis_graphical_editor.track_analysis.build_track_segment_summaries(
-        self._loaded_gpx_segments)
+        self._loaded_gpx_segments,
+        self._track_display_options.exclude_idle_segments,
+        self._track_display_options.use_metric_units,
+      )
 
     if not segment_summaries:
       return
 
+    segment_labels = []
+
+    for segment_summary in segment_summaries:
+      segment_label = \
+        gis_graphical_editor.track_analysis.format_track_segment_interval_label(
+          segment_summary,
+          self._track_display_options.use_metric_units,
+          self._track_display_options.exclude_idle_segments,
+        )
+      segment_labels.append(segment_label)
+
+    panel_width = gis_graphical_editor.segment_list_panel.compute_panel_width(segment_labels)
+    self._right_sidebar_panel_width = panel_width
+    self._ensure_right_sidebar_frame()
     self._segment_list_panel = gis_graphical_editor.segment_list_panel.SegmentListPanel(
-      self._main_frame,
+      self._right_sidebar_frame,
       segment_summaries,
       self._handle_segment_selection_changed,
       self._track_display_options.use_metric_units,
+      self._track_display_options.exclude_idle_segments,
     )
-    self._segment_list_panel.pack(side=tkinter.RIGHT, fill=tkinter.Y)
+    self._segment_list_panel.pack(side=tkinter.BOTTOM, fill=tkinter.BOTH, expand=True)
+
+  def _setup_track_metadata_panel_if_needed(self, gpx_points):
+    """Mount point and segment metadata boxes when --slider has a timestamp range."""
+
+    self._remove_track_metadata_panel()
+
+    if not self._track_display_options.show_time_slider:
+      return
+
+    timestamp_range = gis_graphical_editor.track_analysis.get_timestamp_range(gpx_points)
+
+    if timestamp_range is None:
+      return
+
+    if self._right_sidebar_frame is None:
+      return
+
+    if self._segment_list_panel is None:
+      return
+
+    panel_width = self._right_sidebar_panel_width
+    self._track_metadata_panel = \
+      gis_graphical_editor.track_metadata_panel.TrackMetadataPanel(
+        self._right_sidebar_frame,
+        panel_width,
+      )
+    self._track_metadata_panel.pack(side=tkinter.TOP, fill=tkinter.X)
+    self._segment_list_panel.pack_forget()
+    self._segment_list_panel.pack(side=tkinter.BOTTOM, fill=tkinter.BOTH, expand=True)
+
+    if self._last_slider_timestamp is not None:
+      self._update_track_metadata_for_slider_timestamp(self._last_slider_timestamp)
 
   def _setup_time_slider_if_needed(self, gpx_points):
     """Mount the --slider panel when timestamps span a usable range."""
@@ -443,6 +554,37 @@ class MainWindow:
       self._handle_slider_timestamp_changed,
     )
     self._time_slider_panel.pack(side=tkinter.TOP, fill=tkinter.X, before=self._map_widget)
+    self._setup_track_metadata_panel_if_needed(gpx_points)
+
+  def _update_track_metadata_for_slider_timestamp(self, selected_timestamp):
+    """Refresh the point and segment metadata boxes for the slider time."""
+
+    if self._track_metadata_panel is None:
+      return
+
+    visible_gpx_points = self._get_visible_gpx_points()
+    nearest_gpx_point = gis_graphical_editor.track_analysis.find_gpx_point_nearest_timestamp(
+      visible_gpx_points,
+      selected_timestamp,
+    )
+    segment_summary = None
+
+    if self._segment_list_panel is not None:
+      segment_summary = self._segment_list_panel.find_segment_summary_for_gpx_point(
+        nearest_gpx_point,
+      )
+
+    point_metadata_lines = gis_graphical_editor.track_analysis.format_gpx_point_metadata_lines(
+      nearest_gpx_point,
+    )
+    segment_metadata_lines = \
+      gis_graphical_editor.track_analysis.format_segment_summary_metadata_lines(
+        segment_summary,
+        self._track_display_options.use_metric_units,
+      )
+
+    self._track_metadata_panel.set_point_metadata(point_metadata_lines)
+    self._track_metadata_panel.set_segment_metadata(segment_metadata_lines)
 
   def _handle_slider_timestamp_changed(self, selected_timestamp):
     """Move the slider pointer and keep the selected track point on screen."""
@@ -450,6 +592,7 @@ class MainWindow:
     if self._loaded_gpx_points is None or self._map_widget is None:
       return
 
+    self._last_slider_timestamp = selected_timestamp
     visible_gpx_points = self._get_visible_gpx_points()
 
     track_position = gis_graphical_editor.track_analysis.find_position_at_timestamp(
@@ -463,6 +606,7 @@ class MainWindow:
     latitude, longitude = track_position
     self._update_slider_position_marker(latitude, longitude)
     self._ensure_map_shows_position(latitude, longitude)
+    self._update_track_metadata_for_slider_timestamp(selected_timestamp)
 
   def _update_slider_position_marker(self, latitude, longitude):
     """Create or reposition the large red dot for the current slider time."""

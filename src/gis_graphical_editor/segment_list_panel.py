@@ -14,7 +14,14 @@ _MIN_PANEL_WIDTH = 400
 class SegmentListPanel(tkinter.Frame):
   """Scrollable checklist of GPX segment timestamp intervals."""
 
-  def __init__(self, master, segment_summaries, on_selection_changed, use_metric_units=False):
+  def __init__(
+    self,
+    master,
+    segment_summaries,
+    on_selection_changed,
+    use_metric_units=False,
+    exclude_idle_segments=False,
+  ):
     """Build a width-fitted checklist with every segment selected by default."""
 
     segment_labels = []
@@ -24,10 +31,11 @@ class SegmentListPanel(tkinter.Frame):
         gis_graphical_editor.track_analysis.format_track_segment_interval_label(
           segment_summary,
           use_metric_units,
+          exclude_idle_segments,
         )
       segment_labels.append(segment_label)
 
-    panel_width = _compute_panel_width(segment_labels)
+    panel_width = compute_panel_width(segment_labels)
 
     super().__init__(master, width=panel_width)
 
@@ -53,6 +61,14 @@ class SegmentListPanel(tkinter.Frame):
         selected_gpx_points.append(gpx_point)
 
     return selected_gpx_points
+
+  def find_segment_summary_for_gpx_point(self, gpx_point):
+    """Return the segment summary that owns gpx_point, if any."""
+
+    return gis_graphical_editor.track_analysis.find_segment_summary_for_gpx_point(
+      self._segment_summaries,
+      gpx_point,
+    )
 
   def _build_widgets(self, segment_labels):
     """Lay out a titled scrollable frame of segment checkbuttons."""
@@ -112,7 +128,7 @@ class SegmentListPanel(tkinter.Frame):
     self._on_selection_changed()
 
 
-def _compute_panel_width(segment_labels):
+def compute_panel_width(segment_labels):
   """Return a panel width wide enough for the longest segment label."""
 
   label_font = tkinter.font.Font()

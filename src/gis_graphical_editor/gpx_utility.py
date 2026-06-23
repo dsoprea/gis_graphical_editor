@@ -9,12 +9,17 @@ import gpxpy
 class GpxPointRecord:
   """One GPX point with decimal coordinates and an optional timestamp."""
 
-  def __init__(self, latitude, longitude, timestamp):
-    """Store latitude, longitude, and an optional aware or naive timestamp."""
+  def __init__(self, latitude, longitude, timestamp, additional_metadata=None):
+    """Store latitude, longitude, timestamp, and optional extra GPX field values."""
 
     self.latitude = latitude
     self.longitude = longitude
     self.timestamp = timestamp
+
+    if additional_metadata is None:
+      self.additional_metadata = {}
+    else:
+      self.additional_metadata = additional_metadata
 
 
 def load_gpx_points_from_gpx(gpx_path):
@@ -137,9 +142,100 @@ def _build_gpx_point_record(gpx_point):
   """Convert a gpxpy point into a GpxPointRecord preserving timezone when present."""
 
   timestamp = gpx_point.time
+  additional_metadata = _build_additional_metadata_from_gpx_point(gpx_point)
 
   return GpxPointRecord(
     latitude=gpx_point.latitude,
     longitude=gpx_point.longitude,
     timestamp=timestamp,
+    additional_metadata=additional_metadata,
   )
+
+
+def _build_additional_metadata_from_gpx_point(gpx_point):
+  """Return string metadata for every populated gpxpy point field except lat/lon/time."""
+
+  additional_metadata = {}
+  core_field_names = {"latitude", "longitude", "time"}
+  gpx_fields = gpx_point.gpx_10_fields + gpx_point.gpx_11_fields
+
+  # Copy each populated standard GPX field into the metadata map.
+  for gpx_field in gpx_fields:
+    if not hasattr(gpx_field, "name"):
+      continue
+
+    field_name = gpx_field.name
+
+    if field_name in core_field_names:
+      continue
+
+    field_value = getattr(gpx_point, field_name, None)
+
+    if _is_empty_gpx_metadata_value(field_value):
+      continue
+
+    additional_metadata[field_name] = _stringify_gpx_metadata_value(field_value)
+
+  # Serialize extension XML children when the point carries custom tags.
+  for extension_index, extension_element in enumerate(gpx_point.extensions):
+    extension_key = _build_extension_metadata_key(extension_element, extension_index)
+    extension_text = _stringify_gpx_metadata_value(extension_element.text)
+
+    if extension_text != "":
+      additional_metadata[extension_key] = extension_text
+
+    for child_element in extension_element:
+      child_key = _build_extension_metadata_key(child_element, extension_index)
+      child_text = _stringify_gpx_metadata_value(child_element.text)
+
+      if child_text != "":
+        additional_metadata[child_key] = child_text
+
+  return additional_metadata
+
+
+def _is_empty_gpx_metadata_value(field_value):
+  """Return True when a GPX metadata value should be omitted from display."""
+
+  if field_value is None:
+    return True
+
+  if isinstance(field_value, str) and field_value == "":
+    return True
+
+  if isinstance(field_value, (list, dict, tuple, set)) and len(field_value) == 0:
+    return True
+
+  return False
+
+
+def _stringify_gpx_metadata_value(field_value):
+  """Return a display string for one GPX metadata value."""
+
+  if field_value is None:
+    return ""
+
+  if isinstance(field_value, datetime.datetime):
+    return field_value.isoformat()
+
+  return str(field_value)
+
+
+def _build_extension_metadata_key(extension_element, extension_index):
+  """Return a stable metadata key for one GPX extension XML element."""
+
+  element_tag = extension_element.tag
+
+  if "}" in element_tag:
+    namespace_uri, local_name = element_tag.split("}", 1)
+    namespace_prefix = namespace_uri.lstrip("{")
+
+    return "{namespace_prefix}:{local_name}".format(
+      namespace_prefix=namespace_prefix,
+      local_name=local_name,
+    )
+
+  if element_tag != "":
+    return element_tag
+
+  return "extension_{extension_index}".format(extension_index=extension_index)

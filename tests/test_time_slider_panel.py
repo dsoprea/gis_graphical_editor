@@ -25,3 +25,14 @@ def test_format_display_timestamp_omits_date_and_timezone_by_default():
   label_text = gis_graphical_editor.time_slider_panel.format_display_timestamp(timestamp)
 
   assert label_text == "08:00:00"
+
+
+def test_format_display_timestamp_includes_day_of_week_when_requested():
+  timestamp = datetime.datetime(2024, 6, 1, 8, 0, 0, tzinfo=datetime.timezone.utc)
+  label_text = gis_graphical_editor.time_slider_panel.format_display_timestamp(
+    timestamp,
+    include_date=True,
+    include_day_of_week=True,
+  )
+
+  assert label_text == "Saturday 2024-06-01 08:00:00"

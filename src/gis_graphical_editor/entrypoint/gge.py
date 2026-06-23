@@ -82,6 +82,11 @@ def main(argv=None):
     action="store_true",
     help="Display distances in kilometers instead of miles.",
   )
+  argument_parser.add_argument(
+    "--no-idle",
+    action="store_true",
+    help="Omit segments with average velocity below 1 mph (2 kph when --metric).",
+  )
 
   if argv is None:
     arguments = argument_parser.parse_args()
@@ -105,6 +110,7 @@ def main(argv=None):
     as_timezone_name=arguments.as_timezone,
     show_dates_in_mark_labels=arguments.dates,
     use_metric_units=arguments.metric,
+    exclude_idle_segments=arguments.no_idle,
   )
 
   root = tkinter.Tk()
