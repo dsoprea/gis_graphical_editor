@@ -12,6 +12,9 @@ _ORANGE_INTERVAL_FILL = "#FF8800"
 _ORANGE_INTERVAL_OUTLINE = "#FF6600"
 _RED_INTERVAL_FILL = "#CC0000"
 _RED_INTERVAL_OUTLINE = "#FF0000"
+_SLIDER_POINTER_ICON_SIZE = 18
+_SLIDER_POINTER_FILL = "#CC0000"
+_SLIDER_POINTER_OUTLINE = "#990000"
 
 
 def create_green_point_icon():
@@ -30,6 +33,21 @@ def create_red_interval_icon():
   """Return a PhotoImage red dot slightly wider than the path line."""
 
   return create_dot_icon(_RED_INTERVAL_FILL, _RED_INTERVAL_OUTLINE)
+
+
+def create_red_slider_pointer_icon():
+  """Return a larger PhotoImage red dot for the time-slider position."""
+
+  image = PIL.Image.new("RGBA", (_SLIDER_POINTER_ICON_SIZE, _SLIDER_POINTER_ICON_SIZE), (0, 0, 0, 0))
+  draw = PIL.ImageDraw.Draw(image)
+  draw.ellipse(
+    (1, 1, _SLIDER_POINTER_ICON_SIZE - 2, _SLIDER_POINTER_ICON_SIZE - 2),
+    fill=_SLIDER_POINTER_FILL,
+    outline=_SLIDER_POINTER_OUTLINE,
+  )
+  photo_image = PIL.ImageTk.PhotoImage(image)
+
+  return photo_image
 
 
 def create_dot_icon(fill_color, outline_color):

@@ -41,3 +41,34 @@ def test_build_distance_interval_markers_labels_total_miles_and_timestamp():
   assert len(interval_markers) >= 1
   assert interval_markers[0].label.startswith("10 mi,")
   assert "2024-06-01" in interval_markers[0].label
+
+
+def test_find_position_at_timestamp_interpolates_between_points():
+  start_timestamp = datetime.datetime(2024, 6, 1, 8, 0, 0)
+  end_timestamp = datetime.datetime(2024, 6, 1, 10, 0, 0)
+  gpx_points = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(40.0, -105.0, start_timestamp),
+    gis_graphical_editor.gpx_utility.GpxPointRecord(42.0, -107.0, end_timestamp),
+  ]
+  target_timestamp = datetime.datetime(2024, 6, 1, 9, 0, 0)
+
+  latitude, longitude = gis_graphical_editor.track_analysis.find_position_at_timestamp(
+    gpx_points,
+    target_timestamp,
+  )
+
+  assert latitude == 41.0
+  assert longitude == -106.0
+
+
+def test_get_timestamp_range_returns_earliest_and_latest():
+  gpx_points = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(40.0, -105.0, datetime.datetime(2024, 6, 1, 10, 0, 0)),
+    gis_graphical_editor.gpx_utility.GpxPointRecord(40.1, -105.1, datetime.datetime(2024, 6, 1, 8, 0, 0)),
+    gis_graphical_editor.gpx_utility.GpxPointRecord(40.2, -105.2, datetime.datetime(2024, 6, 1, 12, 0, 0)),
+  ]
+
+  timestamp_range = gis_graphical_editor.track_analysis.get_timestamp_range(gpx_points)
+
+  assert timestamp_range[0] == datetime.datetime(2024, 6, 1, 8, 0, 0)
+  assert timestamp_range[1] == datetime.datetime(2024, 6, 1, 12, 0, 0)

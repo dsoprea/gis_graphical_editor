@@ -11,9 +11,11 @@ class TrackDisplayOptions:
     show_points=False,
     show_mark_labels=True,
     initial_gpx_filepath=None,
+    show_time_slider=False,
   ):
     self.mark_hours_interval = mark_hours_interval
     self.mark_distance_interval = mark_distance_interval
     self.show_points = show_points
     self.show_mark_labels = show_mark_labels
     self.initial_gpx_filepath = initial_gpx_filepath
+    self.show_time_slider = show_time_slider

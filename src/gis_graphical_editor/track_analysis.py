@@ -193,3 +193,76 @@ def has_timestamps(gpx_points):
       return True
 
   return False
+
+
+def get_timestamp_range(gpx_points):
+  earliest_timestamp = None
+  latest_timestamp = None
+
+  for gpx_point in gpx_points:
+    if gpx_point.timestamp is None:
+      continue
+
+    if earliest_timestamp is None or gpx_point.timestamp < earliest_timestamp:
+      earliest_timestamp = gpx_point.timestamp
+
+    if latest_timestamp is None or gpx_point.timestamp > latest_timestamp:
+      latest_timestamp = gpx_point.timestamp
+
+  if earliest_timestamp is None or latest_timestamp is None:
+    return None
+
+  return earliest_timestamp, latest_timestamp
+
+
+def find_position_at_timestamp(gpx_points, target_timestamp):
+  """Return (latitude, longitude) for target_timestamp along the GPX path."""
+
+  if not gpx_points:
+    return None
+
+  first_timestamped_point = None
+  last_timestamped_point = None
+
+  for gpx_point in gpx_points:
+    if gpx_point.timestamp is not None:
+      first_timestamped_point = gpx_point
+
+      break
+
+  for gpx_point in reversed(gpx_points):
+    if gpx_point.timestamp is not None:
+      last_timestamped_point = gpx_point
+
+      break
+
+  if first_timestamped_point is None or last_timestamped_point is None:
+    return None
+
+  if target_timestamp <= first_timestamped_point.timestamp:
+    return first_timestamped_point.latitude, first_timestamped_point.longitude
+
+  if target_timestamp >= last_timestamped_point.timestamp:
+    return last_timestamped_point.latitude, last_timestamped_point.longitude
+
+  for point_index in range(1, len(gpx_points)):
+    previous_point = gpx_points[point_index - 1]
+    current_point = gpx_points[point_index]
+
+    if previous_point.timestamp is None or current_point.timestamp is None:
+      continue
+
+    if previous_point.timestamp <= target_timestamp <= current_point.timestamp:
+      elapsed_seconds = (current_point.timestamp - previous_point.timestamp).total_seconds()
+
+      if elapsed_seconds <= 0:
+        return current_point.latitude, current_point.longitude
+
+      target_elapsed_seconds = (target_timestamp - previous_point.timestamp).total_seconds()
+      fraction = target_elapsed_seconds / elapsed_seconds
+      latitude = previous_point.latitude + fraction * (current_point.latitude - previous_point.latitude)
+      longitude = previous_point.longitude + fraction * (current_point.longitude - previous_point.longitude)
+
+      return latitude, longitude
+
+  return last_timestamped_point.latitude, last_timestamped_point.longitude

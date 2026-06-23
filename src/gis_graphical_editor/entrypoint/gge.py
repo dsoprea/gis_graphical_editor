@@ -44,6 +44,11 @@ def main(argv=None):
     metavar="PATH",
     help="Load this GPX file immediately on startup.",
   )
+  argument_parser.add_argument(
+    "--slider",
+    action="store_true",
+    help="Show a time slider and red pointer along the track.",
+  )
 
   if argv is None:
     arguments = argument_parser.parse_args()
@@ -62,6 +67,7 @@ def main(argv=None):
     show_points=arguments.points,
     show_mark_labels=not arguments.no_mark_labels,
     initial_gpx_filepath=arguments.filepath,
+    show_time_slider=arguments.slider,
   )
 
   root = tkinter.Tk()
