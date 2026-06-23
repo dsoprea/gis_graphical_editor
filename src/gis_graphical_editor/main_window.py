@@ -49,7 +49,15 @@ class MainWindow:
     self._bind_menu_accelerators()
     self._update_file_menu_state()
 
-    self._root.after(0, self.prompt_and_load_gpx_file)
+    self._root.after(0, self._load_initial_gpx_file)
+
+  def _load_initial_gpx_file(self):
+    if self._track_display_options.initial_gpx_filepath is not None:
+      self.load_gpx_file(self._track_display_options.initial_gpx_filepath)
+
+      return
+
+    self.prompt_and_load_gpx_file()
 
   def _build_menu_bar(self):
     menu_bar = tkinter.Menu(self._root)

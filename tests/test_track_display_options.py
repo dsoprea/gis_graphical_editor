@@ -13,3 +13,11 @@ def test_track_display_options_hide_mark_labels_when_requested():
   )
 
   assert track_display_options.show_mark_labels is False
+
+
+def test_track_display_options_stores_initial_gpx_filepath():
+  track_display_options = gis_graphical_editor.track_display_options.TrackDisplayOptions(
+    initial_gpx_filepath="/tmp/track.gpx",
+  )
+
+  assert track_display_options.initial_gpx_filepath == "/tmp/track.gpx"

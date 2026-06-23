@@ -39,6 +39,11 @@ def main(argv=None):
     action="store_true",
     help="Hide text labels on --mark-hours and --mark-distance markers.",
   )
+  argument_parser.add_argument(
+    "--filepath",
+    metavar="PATH",
+    help="Load this GPX file immediately on startup.",
+  )
 
   if argv is None:
     arguments = argument_parser.parse_args()
@@ -56,6 +61,7 @@ def main(argv=None):
     mark_distance_interval=arguments.mark_distance,
     show_points=arguments.points,
     show_mark_labels=not arguments.no_mark_labels,
+    initial_gpx_filepath=arguments.filepath,
   )
 
   root = tkinter.Tk()
