@@ -60,9 +60,6 @@ def load_track_points_from_gpx(gpx_path):
 def _build_gpx_point_record(gpx_point):
   timestamp = gpx_point.time
 
-  if timestamp is not None and timestamp.tzinfo is not None:
-    timestamp = timestamp.replace(tzinfo=None)
-
   return GpxPointRecord(
     latitude=gpx_point.latitude,
     longitude=gpx_point.longitude,
