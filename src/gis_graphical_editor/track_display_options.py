@@ -14,6 +14,7 @@ class TrackDisplayOptions:
     show_time_slider=False,
     as_timezone_name=None,
     show_dates_in_mark_labels=False,
+    use_metric_units=False,
   ):
     """Capture display flags parsed from the gge command line."""
 
@@ -25,3 +26,4 @@ class TrackDisplayOptions:
     self.show_time_slider = show_time_slider
     self.as_timezone_name = as_timezone_name
     self.show_dates_in_mark_labels = show_dates_in_mark_labels
+    self.use_metric_units = use_metric_units

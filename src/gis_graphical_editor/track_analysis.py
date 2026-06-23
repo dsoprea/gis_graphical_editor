@@ -7,8 +7,22 @@ import gis_graphical_editor.gpx_utility
 import gis_graphical_editor.time_slider_panel
 
 _EARTH_RADIUS_MILES = 3958.8
+_EARTH_RADIUS_KILOMETERS = 6371.0
 _MILES_LABEL = "mi"
+_KILOMETERS_LABEL = "km"
 _HOURS_LABEL = "h"
+
+
+class TrackSegmentSummary:
+  """Timestamp span and points for one GPX track segment."""
+
+  def __init__(self, segment_points, earliest_timestamp, latest_timestamp):
+    """Store segment points and optional earliest and latest timestamps."""
+
+    self.segment_points = segment_points
+    self.earliest_timestamp = earliest_timestamp
+    self.latest_timestamp = latest_timestamp
+    self.point_count = len(segment_points)
 
 
 class TrackIntervalMarker:
@@ -22,26 +36,152 @@ class TrackIntervalMarker:
     self.label = label
 
 
-def build_hour_interval_markers(gpx_points, interval_hours, show_dates=False):
-  """Return orange hour-interval markers with total hours and miles labels."""
+def build_track_segment_summaries(segment_point_lists):
+  """Return segment summaries sorted by earliest timestamp when present."""
+
+  segment_summaries = []
+
+  # Derive each segment span, including untimed segments without a timestamp range.
+  for segment_points in segment_point_lists:
+    timestamp_range = get_timestamp_range(segment_points)
+
+    if timestamp_range is None:
+      segment_summaries.append(
+        TrackSegmentSummary(
+          segment_points,
+          None,
+          None,
+        ),
+      )
+      continue
+
+    earliest_timestamp, latest_timestamp = timestamp_range
+    segment_summaries.append(
+      TrackSegmentSummary(
+        segment_points,
+        earliest_timestamp,
+        latest_timestamp,
+      ),
+    )
+
+  segment_summaries.sort(key=_build_track_segment_summary_sort_key)
+
+  return segment_summaries
+
+
+def format_elapsed_duration_between_timestamps(first_timestamp, second_timestamp):
+  """Return an HH:MM:SS duration string for the elapsed time between two datetimes."""
+
+  elapsed_timedelta = second_timestamp - first_timestamp
+  total_seconds = int(elapsed_timedelta.total_seconds())
+
+  if total_seconds < 0:
+    total_seconds = abs(total_seconds)
+
+  duration_hours = total_seconds // 3600
+  duration_minutes = (total_seconds % 3600) // 60
+  duration_seconds = total_seconds % 60
+
+  return "{duration_hours:02d}:{duration_minutes:02d}:{duration_seconds:02d}".format(
+    duration_hours=duration_hours,
+    duration_minutes=duration_minutes,
+    duration_seconds=duration_seconds,
+  )
+
+
+def compute_total_path_distance_for_gpx_points(gpx_points, use_metric_units=False):
+  """Return cumulative great-circle distance along consecutive GPX points."""
+
+  total_distance = 0.0
+
+  # Sum haversine leg distances between each consecutive point pair.
+  for point_index in range(1, len(gpx_points)):
+    previous_point = gpx_points[point_index - 1]
+    current_point = gpx_points[point_index]
+    segment_distance = compute_distance_between_points(
+      previous_point,
+      current_point,
+      use_metric_units,
+    )
+    total_distance = total_distance + segment_distance
+
+  return total_distance
+
+
+def format_track_segment_interval_label(segment_summary, use_metric_units=False):
+  """Return a segment label with point count, duration, and path distance."""
+
+  total_distance = compute_total_path_distance_for_gpx_points(
+    segment_summary.segment_points,
+    use_metric_units,
+  )
+  distance_text = format_distance_display(total_distance, use_metric_units)
+
+  if segment_summary.earliest_timestamp is None or segment_summary.latest_timestamp is None:
+    return "Points: {point_count}, Distance: {distance_text}\nno timestamps".format(
+      point_count=segment_summary.point_count,
+      distance_text=distance_text,
+    )
+
+  earliest_text = \
+    gis_graphical_editor.time_slider_panel.format_display_timestamp(
+      segment_summary.earliest_timestamp,
+      include_date=True,
+    )
+  latest_text = \
+    gis_graphical_editor.time_slider_panel.format_display_timestamp(
+      segment_summary.latest_timestamp,
+      include_date=True,
+    )
+  duration_text = format_elapsed_duration_between_timestamps(
+    segment_summary.earliest_timestamp,
+    segment_summary.latest_timestamp,
+  )
+
+  return \
+    "{earliest_text} - {latest_text}\n" \
+    "Points: {point_count}, Interval: {duration_text}, Distance: {distance_text}".format(
+      earliest_text=earliest_text,
+      latest_text=latest_text,
+      point_count=segment_summary.point_count,
+      duration_text=duration_text,
+      distance_text=distance_text,
+    )
+
+
+def _build_track_segment_summary_sort_key(segment_summary):
+  """Sort timed segments by earliest timestamp and untimed segments last."""
+
+  if segment_summary.earliest_timestamp is None:
+    return (1, datetime.datetime.max.replace(tzinfo=datetime.timezone.utc))
+
+  return (0, segment_summary.earliest_timestamp)
+
+
+def build_hour_interval_markers(gpx_points, interval_hours, show_dates=False, use_metric_units=False):
+  """Return orange hour-interval markers with total hours and distance labels."""
 
   if interval_hours <= 0:
     return []
 
   interval_markers = []
   cumulative_hours = 0.0
-  cumulative_miles = 0.0
+  cumulative_distance = 0.0
   next_target_hours = float(interval_hours)
 
   # Walk each segment and emit markers whenever a target hour boundary is crossed.
   for point_index in range(1, len(gpx_points)):
     previous_point = gpx_points[point_index - 1]
     current_point = gpx_points[point_index]
-    segment_miles = compute_miles_between_points(previous_point, current_point)
+    segment_distance = compute_distance_between_points(
+      previous_point,
+      current_point,
+      use_metric_units,
+    )
     segment_start_hours = cumulative_hours
-    segment_start_miles = cumulative_miles
+    segment_start_distance = cumulative_distance
 
-    cumulative_miles = cumulative_miles + segment_miles
+    cumulative_distance = cumulative_distance + segment_distance
 
     if previous_point.timestamp is None or current_point.timestamp is None:
       continue
@@ -60,13 +200,14 @@ def build_hour_interval_markers(gpx_points, interval_hours, show_dates=False):
       fraction = (next_target_hours - segment_start_hours) / segment_hours
       latitude = previous_point.latitude + fraction * (current_point.latitude - previous_point.latitude)
       longitude = previous_point.longitude + fraction * (current_point.longitude - previous_point.longitude)
-      marker_miles = segment_start_miles + fraction * segment_miles
+      marker_distance = segment_start_distance + fraction * segment_distance
       marker_timestamp = interpolate_timestamp(previous_point, current_point, fraction)
       label = format_hour_interval_marker_label(
         next_target_hours,
-        marker_miles,
+        marker_distance,
         marker_timestamp,
         show_dates,
+        use_metric_units,
       )
 
       interval_markers.append(
@@ -82,37 +223,47 @@ def build_hour_interval_markers(gpx_points, interval_hours, show_dates=False):
   return interval_markers
 
 
-def build_distance_interval_markers(gpx_points, interval_miles, show_dates=False):
-  """Return red distance-interval markers with total miles and timestamp labels."""
+def build_distance_interval_markers(
+  gpx_points,
+  interval_distance,
+  show_dates=False,
+  use_metric_units=False,
+):
+  """Return red distance-interval markers with total distance and timestamp labels."""
 
-  if interval_miles <= 0:
+  if interval_distance <= 0:
     return []
 
   interval_markers = []
-  cumulative_miles = 0.0
-  next_target_miles = float(interval_miles)
+  cumulative_distance = 0.0
+  next_target_distance = float(interval_distance)
 
-  # Walk each segment and emit markers whenever a target mile boundary is crossed.
+  # Walk each segment and emit markers whenever a target distance boundary is crossed.
   for point_index in range(1, len(gpx_points)):
     previous_point = gpx_points[point_index - 1]
     current_point = gpx_points[point_index]
-    segment_miles = compute_miles_between_points(previous_point, current_point)
-    segment_start_miles = cumulative_miles
+    segment_distance = compute_distance_between_points(
+      previous_point,
+      current_point,
+      use_metric_units,
+    )
+    segment_start_distance = cumulative_distance
 
-    cumulative_miles = cumulative_miles + segment_miles
+    cumulative_distance = cumulative_distance + segment_distance
 
-    if segment_miles <= 0:
+    if segment_distance <= 0:
       continue
 
-    while next_target_miles <= cumulative_miles + 1e-9:
-      fraction = (next_target_miles - segment_start_miles) / segment_miles
+    while next_target_distance <= cumulative_distance + 1e-9:
+      fraction = (next_target_distance - segment_start_distance) / segment_distance
       latitude = previous_point.latitude + fraction * (current_point.latitude - previous_point.latitude)
       longitude = previous_point.longitude + fraction * (current_point.longitude - previous_point.longitude)
       marker_timestamp = interpolate_timestamp(previous_point, current_point, fraction)
       label = format_distance_interval_marker_label(
-        next_target_miles,
+        next_target_distance,
         marker_timestamp,
         show_dates,
+        use_metric_units,
       )
 
       interval_markers.append(
@@ -123,13 +274,30 @@ def build_distance_interval_markers(gpx_points, interval_miles, show_dates=False
         ),
       )
 
-      next_target_miles = next_target_miles + interval_miles
+      next_target_distance = next_target_distance + interval_distance
 
   return interval_markers
 
 
+def compute_distance_between_points(first_point, second_point, use_metric_units=False):
+  """Return great-circle distance in miles or kilometers between two GPX points."""
+
+  central_angle_radians = _compute_haversine_central_angle_radians(first_point, second_point)
+
+  if use_metric_units:
+    return _EARTH_RADIUS_KILOMETERS * central_angle_radians
+
+  return _EARTH_RADIUS_MILES * central_angle_radians
+
+
 def compute_miles_between_points(first_point, second_point):
   """Return great-circle miles between two GpxPointRecord coordinates."""
+
+  return compute_distance_between_points(first_point, second_point, use_metric_units=False)
+
+
+def _compute_haversine_central_angle_radians(first_point, second_point):
+  """Return the haversine central angle in radians between two GPX coordinates."""
 
   latitude_delta_radians = math.radians(second_point.latitude - first_point.latitude)
   longitude_delta_radians = math.radians(second_point.longitude - first_point.longitude)
@@ -141,9 +309,8 @@ def compute_miles_between_points(first_point, second_point):
     + math.cos(first_latitude_radians) \
     * math.cos(second_latitude_radians) \
     * math.sin(longitude_delta_radians / 2) ** 2
-  central_angle_radians = 2 * math.asin(math.sqrt(haversine_value))
 
-  return _EARTH_RADIUS_MILES * central_angle_radians
+  return 2 * math.asin(math.sqrt(haversine_value))
 
 
 def compute_hours_between_timestamps(first_timestamp, second_timestamp):
@@ -172,23 +339,25 @@ def interpolate_timestamp(first_point, second_point, fraction):
   return None
 
 
-def format_hour_interval_marker_label(total_hours, total_miles, marker_timestamp=None, show_dates=False):
-  """Format the --mark-hours marker label with hours, miles, and optional timestamp."""
+def format_hour_interval_marker_label(
+  total_hours,
+  total_distance,
+  marker_timestamp=None,
+  show_dates=False,
+  use_metric_units=False,
+):
+  """Format the --mark-hours marker label with hours, distance, and optional timestamp."""
 
   hours_display = int(round(total_hours))
-  miles_display = int(round(total_miles))
+  distance_text = format_distance_display(total_distance, use_metric_units)
   hours_text = "{total_hours} {hours_label}".format(
     total_hours=hours_display,
     hours_label=_HOURS_LABEL,
   )
-  miles_text = "{total_miles} {miles_label}".format(
-    total_miles=miles_display,
-    miles_label=_MILES_LABEL,
-  )
 
-  label_text = "{hours_text}, {miles_text}".format(
+  label_text = "{hours_text}, {distance_text}".format(
     hours_text=hours_text,
-    miles_text=miles_text,
+    distance_text=distance_text,
   )
 
   if marker_timestamp is None:
@@ -206,17 +375,18 @@ def format_hour_interval_marker_label(total_hours, total_miles, marker_timestamp
   )
 
 
-def format_distance_interval_marker_label(total_miles, marker_timestamp, show_dates=False):
-  """Format the --mark-distance marker label with integer miles and a timestamp."""
+def format_distance_interval_marker_label(
+  total_distance,
+  marker_timestamp,
+  show_dates=False,
+  use_metric_units=False,
+):
+  """Format the --mark-distance marker label with integer distance and a timestamp."""
 
-  miles_display = int(round(total_miles))
-  miles_text = "{total_miles} {miles_label}".format(
-    total_miles=miles_display,
-    miles_label=_MILES_LABEL,
-  )
+  distance_text = format_distance_display(total_distance, use_metric_units)
 
   if marker_timestamp is None:
-    return miles_text
+    return distance_text
 
   timestamp_text = \
     gis_graphical_editor.time_slider_panel.format_display_timestamp(
@@ -224,9 +394,25 @@ def format_distance_interval_marker_label(total_miles, marker_timestamp, show_da
       include_date=show_dates,
     )
 
-  return "{miles_text}, {timestamp_text}".format(
-    miles_text=miles_text,
+  return "{distance_text}, {timestamp_text}".format(
+    distance_text=distance_text,
     timestamp_text=timestamp_text,
+  )
+
+
+def format_distance_display(total_distance, use_metric_units=False):
+  """Return a rounded distance value with the miles or kilometers unit label."""
+
+  distance_display = int(round(total_distance))
+
+  if use_metric_units:
+    distance_label = _KILOMETERS_LABEL
+  else:
+    distance_label = _MILES_LABEL
+
+  return "{distance_display} {distance_label}".format(
+    distance_display=distance_display,
+    distance_label=distance_label,
   )
 
 

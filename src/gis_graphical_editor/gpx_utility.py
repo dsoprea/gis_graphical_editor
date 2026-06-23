@@ -50,6 +50,54 @@ def load_gpx_points_from_gpx(gpx_path):
   return gpx_points
 
 
+def load_track_point_segments_from_gpx(gpx_path):
+  """Return ordered segment point lists from tracks, routes, or waypoints."""
+
+  with open(gpx_path, "r", encoding="utf-8") as gpx_file:
+    gpx_text = gpx_file.read()
+
+  gpx_document = gpxpy.parse(gpx_text)
+  segment_point_lists = []
+
+  # Collect each track segment as its own point list.
+  for track in gpx_document.tracks:
+    for segment in track.segments:
+      segment_points = []
+
+      for point in segment.points:
+        segment_points.append(_build_gpx_point_record(point))
+
+      if segment_points:
+        segment_point_lists.append(segment_points)
+
+  if segment_point_lists:
+    return segment_point_lists
+
+  # Fall back to one segment per route when the file has no track segments.
+  for route in gpx_document.routes:
+    route_points = []
+
+    for point in route.points:
+      route_points.append(_build_gpx_point_record(point))
+
+    if route_points:
+      segment_point_lists.append(route_points)
+
+  if segment_point_lists:
+    return segment_point_lists
+
+  # Fall back to a single waypoint segment when tracks and routes are absent.
+  waypoint_points = []
+
+  for waypoint in gpx_document.waypoints:
+    waypoint_points.append(_build_gpx_point_record(waypoint))
+
+  if waypoint_points:
+    segment_point_lists.append(waypoint_points)
+
+  return segment_point_lists
+
+
 def load_track_points_from_gpx(gpx_path):
   """Return ordered (latitude, longitude) tuples from tracks, routes, and waypoints."""
 

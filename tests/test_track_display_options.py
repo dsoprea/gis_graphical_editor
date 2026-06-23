@@ -39,3 +39,11 @@ def test_track_display_options_stores_show_dates_in_mark_labels():
   )
 
   assert track_display_options.show_dates_in_mark_labels is True
+
+
+def test_track_display_options_stores_use_metric_units():
+  track_display_options = gis_graphical_editor.track_display_options.TrackDisplayOptions(
+    use_metric_units=True,
+  )
+
+  assert track_display_options.use_metric_units is True

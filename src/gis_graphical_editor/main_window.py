@@ -11,6 +11,7 @@ import tkintermapview.utility_functions
 
 import gis_graphical_editor.gpx_utility
 import gis_graphical_editor.map_icon_utility
+import gis_graphical_editor.segment_list_panel
 import gis_graphical_editor.time_slider_panel
 import gis_graphical_editor.track_analysis
 import gis_graphical_editor.track_display_options
@@ -46,6 +47,7 @@ class MainWindow:
     self._track_display_options = track_display_options
     self._main_frame = tkinter.Frame(self._root)
     self._main_frame.pack(fill=tkinter.BOTH, expand=True)
+    self._map_column_frame = None
     self._map_widget = None
     self._file_menu = None
     self._green_point_icon = None
@@ -53,8 +55,10 @@ class MainWindow:
     self._red_interval_icon = None
     self._slider_pointer_icon = None
     self._time_slider_panel = None
+    self._segment_list_panel = None
     self._slider_position_marker = None
     self._loaded_gpx_points = None
+    self._loaded_gpx_segments = None
 
     self._build_menu_bar()
     self._bind_menu_accelerators()
@@ -173,6 +177,8 @@ class MainWindow:
 
     try:
       gpx_points = gis_graphical_editor.gpx_utility.load_gpx_points_from_gpx(gpx_path)
+      gpx_segments = \
+        gis_graphical_editor.gpx_utility.load_track_point_segments_from_gpx(gpx_path)
     except Exception as error:
       message = "Could not read GPX file:\n{error}".format(error=error)
       _LOGGER.exception(message)
@@ -195,6 +201,15 @@ class MainWindow:
       gpx_points = conversion_result[0]
       encountered_naive_timestamp = conversion_result[1]
 
+      for segment_points in gpx_segments:
+        segment_conversion_result = \
+          gis_graphical_editor.gpx_utility.convert_gpx_point_timestamps_to_timezone(
+            segment_points,
+            self._track_display_options.as_timezone_name)
+
+        if segment_conversion_result[1]:
+          encountered_naive_timestamp = True
+
       if encountered_naive_timestamp:
         message = \
           "This GPX file has timestamps without timezone information. " \
@@ -213,6 +228,7 @@ class MainWindow:
         message = "GPX file has no timestamps, so --slider cannot be used."
         tkinter.messagebox.showwarning("Load GPX", message, parent=self._root)
 
+    self._loaded_gpx_segments = gpx_segments
     self._display_gpx_points(gpx_points)
 
   def _ensure_map_widget(self):
@@ -221,7 +237,10 @@ class MainWindow:
     if self._map_widget is not None:
       return
 
-    self._map_widget = tkintermapview.TkinterMapView(self._main_frame, corner_radius=0)
+    self._map_column_frame = tkinter.Frame(self._main_frame)
+    self._map_column_frame.pack(side=tkinter.LEFT, fill=tkinter.BOTH, expand=True)
+
+    self._map_widget = tkintermapview.TkinterMapView(self._map_column_frame, corner_radius=0)
     self._map_widget.pack(fill=tkinter.BOTH, expand=True)
     self._bind_map_widget_events()
     self._update_file_menu_state()
@@ -244,6 +263,16 @@ class MainWindow:
       relative_pointer_y=relative_mouse_y,
     )
 
+  def _remove_segment_list_panel(self):
+    """Destroy the optional segment list panel when unloading a track."""
+
+    if self._segment_list_panel is None:
+      return
+
+    self._segment_list_panel.pack_forget()
+    self._segment_list_panel.destroy()
+    self._segment_list_panel = None
+
   def _remove_time_slider_panel(self):
     """Destroy the optional time slider panel when unloading a track."""
 
@@ -261,15 +290,25 @@ class MainWindow:
       return
 
     self._remove_time_slider_panel()
-    self._map_widget.pack_forget()
-    self._map_widget.destroy()
-    self._map_widget = None
+    self._remove_segment_list_panel()
+
+    if self._map_widget is not None:
+      self._map_widget.pack_forget()
+      self._map_widget.destroy()
+      self._map_widget = None
+
+    if self._map_column_frame is not None:
+      self._map_column_frame.pack_forget()
+      self._map_column_frame.destroy()
+      self._map_column_frame = None
+
     self._green_point_icon = None
     self._orange_interval_icon = None
     self._red_interval_icon = None
     self._slider_pointer_icon = None
     self._slider_position_marker = None
     self._loaded_gpx_points = None
+    self._loaded_gpx_segments = None
     self._update_file_menu_state()
 
   def close_loaded_gpx_file(self):
@@ -281,18 +320,46 @@ class MainWindow:
     self._remove_map_widget()
 
   def _display_gpx_points(self, gpx_points):
-    """Draw the track path, optional overlays, bounds fit, and time slider."""
+    """Store loaded points, mount the segment panel, and draw the visible track."""
 
     self._ensure_map_widget()
+    self._loaded_gpx_points = gpx_points
+    self._setup_segment_list_panel()
+    self._refresh_track_display()
+
+  def _get_visible_gpx_points(self):
+    """Return GPX points for checked segments, or the full track when no panel exists."""
+
+    if self._segment_list_panel is None:
+      return self._loaded_gpx_points
+
+    return self._segment_list_panel.get_selected_gpx_points()
+
+  def _handle_segment_selection_changed(self):
+    """Redraw the map when the user toggles segment checkboxes."""
+
+    self._refresh_track_display()
+
+  def _refresh_track_display(self):
+    """Draw the path, overlays, bounds, and slider for the currently visible points."""
+
+    if self._map_widget is None:
+      return
+
+    visible_gpx_points = self._get_visible_gpx_points()
 
     self._map_widget.delete_all_path()
     self._map_widget.delete_all_marker()
     self._slider_position_marker = None
-    self._loaded_gpx_points = gpx_points
+
+    if not visible_gpx_points:
+      self._setup_time_slider_if_needed(visible_gpx_points)
+
+      return
 
     track_points = []
 
-    for gpx_point in gpx_points:
+    for gpx_point in visible_gpx_points:
       track_points.append((gpx_point.latitude, gpx_point.longitude))
 
     self._map_widget.set_path(
@@ -302,33 +369,58 @@ class MainWindow:
     )
 
     if self._track_display_options.show_points:
-      self._display_recorded_points(gpx_points)
+      self._display_recorded_points(visible_gpx_points)
 
     if self._track_display_options.mark_hours_interval is not None \
-        and gis_graphical_editor.track_analysis.has_timestamps(gpx_points):
+        and gis_graphical_editor.track_analysis.has_timestamps(visible_gpx_points):
       hour_interval_markers = gis_graphical_editor.track_analysis.build_hour_interval_markers(
-        gpx_points,
+        visible_gpx_points,
         self._track_display_options.mark_hours_interval,
         self._track_display_options.show_dates_in_mark_labels,
+        self._track_display_options.use_metric_units,
       )
       self._display_hour_interval_markers(hour_interval_markers)
 
     if self._track_display_options.mark_distance_interval is not None:
       distance_interval_markers = gis_graphical_editor.track_analysis.build_distance_interval_markers(
-        gpx_points,
+        visible_gpx_points,
         self._track_display_options.mark_distance_interval,
         self._track_display_options.show_dates_in_mark_labels,
+        self._track_display_options.use_metric_units,
       )
       self._display_distance_interval_markers(distance_interval_markers)
 
-    # Fit the map to the full track extent before optional slider setup.
+    # Fit the map to the visible track extent before optional slider setup.
     latitudes = [point[0] for point in track_points]
     longitudes = [point[1] for point in track_points]
     position_top_left = (max(latitudes), min(longitudes))
     position_bottom_right = (min(latitudes), max(longitudes))
 
     self._map_widget.fit_bounding_box(position_top_left, position_bottom_right)
-    self._setup_time_slider_if_needed(gpx_points)
+    self._setup_time_slider_if_needed(visible_gpx_points)
+
+  def _setup_segment_list_panel(self):
+    """Mount the right-side segment checklist when the loaded GPX has segments."""
+
+    self._remove_segment_list_panel()
+
+    if self._loaded_gpx_segments is None:
+      return
+
+    segment_summaries = \
+      gis_graphical_editor.track_analysis.build_track_segment_summaries(
+        self._loaded_gpx_segments)
+
+    if not segment_summaries:
+      return
+
+    self._segment_list_panel = gis_graphical_editor.segment_list_panel.SegmentListPanel(
+      self._main_frame,
+      segment_summaries,
+      self._handle_segment_selection_changed,
+      self._track_display_options.use_metric_units,
+    )
+    self._segment_list_panel.pack(side=tkinter.RIGHT, fill=tkinter.Y)
 
   def _setup_time_slider_if_needed(self, gpx_points):
     """Mount the --slider panel when timestamps span a usable range."""
@@ -345,7 +437,7 @@ class MainWindow:
 
     earliest_timestamp, latest_timestamp = timestamp_range
     self._time_slider_panel = gis_graphical_editor.time_slider_panel.TimeSliderPanel(
-      self._main_frame,
+      self._map_column_frame,
       earliest_timestamp,
       latest_timestamp,
       self._handle_slider_timestamp_changed,
@@ -358,8 +450,10 @@ class MainWindow:
     if self._loaded_gpx_points is None or self._map_widget is None:
       return
 
+    visible_gpx_points = self._get_visible_gpx_points()
+
     track_position = gis_graphical_editor.track_analysis.find_position_at_timestamp(
-      self._loaded_gpx_points,
+      visible_gpx_points,
       selected_timestamp,
     )
 

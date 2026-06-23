@@ -44,7 +44,7 @@ def main(argv=None):
     "--mark-distance",
     metavar="N",
     type=int,
-    help="Place a red marker every N miles along the path.",
+    help="Place a red marker every N miles along the path (kilometers when --metric).",
   )
   argument_parser.add_argument(
     "--points",
@@ -77,6 +77,11 @@ def main(argv=None):
     action="store_true",
     help="Include calendar dates in --mark-hours and --mark-distance marker labels.",
   )
+  argument_parser.add_argument(
+    "--metric",
+    action="store_true",
+    help="Display distances in kilometers instead of miles.",
+  )
 
   if argv is None:
     arguments = argument_parser.parse_args()
@@ -99,6 +104,7 @@ def main(argv=None):
     show_time_slider=arguments.slider,
     as_timezone_name=arguments.as_timezone,
     show_dates_in_mark_labels=arguments.dates,
+    use_metric_units=arguments.metric,
   )
 
   root = tkinter.Tk()
