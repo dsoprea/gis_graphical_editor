@@ -180,7 +180,7 @@ class SegmentListPanel(tkinter.Frame):
     """Lay out a titled scrollable frame of segment checkbuttons."""
 
     header_row = tkinter.Frame(self)
-    header_row.pack(side=tkinter.TOP, fill=tkinter.X, padx=8, pady=(8, 4))
+    header_row.pack(side=tkinter.TOP, fill=tkinter.X, padx=8, pady=(0, 4))
 
     title_label = tkinter.Label(header_row, text="Segments")
     title_label.pack(side=tkinter.LEFT)

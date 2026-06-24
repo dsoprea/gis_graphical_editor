@@ -14,6 +14,11 @@ class TrackMetadataPanel(tkinter.Frame):
 
     super().__init__(master, width=panel_width)
 
+    # Match the right sidebar frame instead of default white Text backgrounds.
+    self._background_color = master.cget("bg")
+    self.config(bg=self._background_color)
+    self._section_title_font = tkinter.font.Font(self, weight="bold")
+
     self._build_widgets(panel_width)
 
   def set_point_metadata(self, metadata_lines):
@@ -45,32 +50,71 @@ class TrackMetadataPanel(tkinter.Frame):
 
     metadata_text_width = _compute_metadata_text_width(panel_width)
 
-    point_metadata_frame = tkinter.LabelFrame(self, text="Current Point")
-    point_metadata_frame.pack(side=tkinter.TOP, fill=tkinter.X, padx=8, pady=(8, 4))
     self._point_metadata_text = \
-      self._build_metadata_text_box(point_metadata_frame, metadata_text_width)
-
-    segment_metadata_frame = tkinter.LabelFrame(self, text="Current Segment")
-    segment_metadata_frame.pack(side=tkinter.TOP, fill=tkinter.X, padx=8, pady=(0, 8))
+      self._build_metadata_section(
+        "Current Point",
+        metadata_text_width,
+        top_padding=(8, 0),
+      )
     self._segment_metadata_text = \
-      self._build_metadata_text_box(segment_metadata_frame, metadata_text_width)
+      self._build_metadata_section(
+        "Current Segment",
+        metadata_text_width,
+        top_padding=0,
+      )
+
+  def _build_metadata_section(self, section_title, metadata_text_width, top_padding):
+    """Return a read-only metadata text widget under a bold section title."""
+
+    section_frame = tkinter.Frame(self, bg=self._background_color, bd=0, relief=tkinter.FLAT)
+    section_frame.pack(side=tkinter.TOP, fill=tkinter.X, padx=8, pady=top_padding)
+
+    title_label = tkinter.Label(
+      section_frame,
+      text=section_title,
+      bg=self._background_color,
+      font=self._section_title_font,
+      anchor=tkinter.W,
+    )
+    title_label.pack(side=tkinter.TOP, fill=tkinter.X, anchor=tkinter.W)
+
+    return self._build_metadata_text_box(section_frame, metadata_text_width)
 
   def _build_metadata_text_box(self, parent_frame, metadata_text_width):
     """Return a read-only text widget with a vertical scrollbar inside parent_frame."""
 
-    text_container = tkinter.Frame(parent_frame)
-    text_container.pack(fill=tkinter.BOTH, expand=True, padx=4, pady=4)
+    text_container = tkinter.Frame(
+      parent_frame,
+      bg=self._background_color,
+      bd=0,
+      relief=tkinter.FLAT,
+    )
+    text_container.pack(fill=tkinter.BOTH, expand=True, padx=4, pady=0)
 
-    scrollbar = tkinter.Scrollbar(text_container, orient=tkinter.VERTICAL)
+    scrollbar = tkinter.Scrollbar(
+      text_container,
+      orient=tkinter.VERTICAL,
+      bg=self._background_color,
+      bd=0,
+      highlightthickness=0,
+      relief=tkinter.FLAT,
+    )
     scrollbar.pack(side=tkinter.RIGHT, fill=tkinter.Y)
 
     metadata_text = tkinter.Text(
       text_container,
       width=metadata_text_width,
-      height=_METADATA_BOX_HEIGHT,
+      height=1,
       wrap=tkinter.WORD,
       yscrollcommand=scrollbar.set,
       state=tkinter.DISABLED,
+      bg=self._background_color,
+      bd=0,
+      relief=tkinter.FLAT,
+      highlightthickness=0,
+      spacing1=0,
+      spacing2=0,
+      spacing3=0,
     )
     metadata_text.pack(side=tkinter.LEFT, fill=tkinter.BOTH, expand=True)
     scrollbar.config(command=metadata_text.yview)
@@ -86,8 +130,16 @@ class TrackMetadataPanel(tkinter.Frame):
     if metadata_lines:
       metadata_body = "\n".join(metadata_lines)
       metadata_text_widget.insert(tkinter.END, metadata_body)
+      line_count = len(metadata_lines)
+    else:
+      line_count = 1
 
-    metadata_text_widget.config(state=tkinter.DISABLED)
+    if line_count > _METADATA_BOX_HEIGHT:
+      display_height = _METADATA_BOX_HEIGHT
+    else:
+      display_height = line_count
+
+    metadata_text_widget.config(height=display_height, state=tkinter.DISABLED)
 
 
 def _compute_metadata_text_width(panel_width):
