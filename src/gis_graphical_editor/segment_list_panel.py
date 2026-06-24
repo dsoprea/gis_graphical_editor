@@ -24,6 +24,7 @@ class SegmentListPanel(tkinter.Frame):
     on_selection_changed,
     on_split_requested,
     on_delete_requested,
+    on_undo_requested,
     panel_width,
     use_metric_units=False,
     exclude_idle_segments=False,
@@ -47,6 +48,7 @@ class SegmentListPanel(tkinter.Frame):
     self._on_selection_changed = on_selection_changed
     self._on_split_requested = on_split_requested
     self._on_delete_requested = on_delete_requested
+    self._on_undo_requested = on_undo_requested
     self._selection_variables = []
     self._segment_checkbuttons = []
     self._panel_width = panel_width
@@ -135,6 +137,16 @@ class SegmentListPanel(tkinter.Frame):
 
     self._delete_button.config(state=delete_button_state)
 
+  def set_undo_button_enabled(self, enabled):
+    """Enable or disable the Undo button above the segment checklist."""
+
+    if enabled:
+      undo_button_state = tkinter.NORMAL
+    else:
+      undo_button_state = tkinter.DISABLED
+
+    self._undo_button.config(state=undo_button_state)
+
   def collect_unchecked_segment_first_points(self):
     """Return the first point of every segment whose checkbox is currently cleared."""
 
@@ -173,13 +185,13 @@ class SegmentListPanel(tkinter.Frame):
     title_label = tkinter.Label(header_row, text="Segments")
     title_label.pack(side=tkinter.LEFT)
 
-    self._split_button = tkinter.Button(
+    self._undo_button = tkinter.Button(
       header_row,
-      text="Split",
-      command=self._handle_split_button_clicked,
+      text="Undo",
+      command=self._handle_undo_button_clicked,
       state=tkinter.DISABLED,
     )
-    self._split_button.pack(side=tkinter.RIGHT)
+    self._undo_button.pack(side=tkinter.RIGHT)
 
     self._delete_button = tkinter.Button(
       header_row,
@@ -188,6 +200,14 @@ class SegmentListPanel(tkinter.Frame):
       state=tkinter.DISABLED,
     )
     self._delete_button.pack(side=tkinter.RIGHT)
+
+    self._split_button = tkinter.Button(
+      header_row,
+      text="Split",
+      command=self._handle_split_button_clicked,
+      state=tkinter.DISABLED,
+    )
+    self._split_button.pack(side=tkinter.RIGHT)
 
     list_container = tkinter.Frame(self)
     list_container.pack(fill=tkinter.BOTH, expand=True, padx=8, pady=(0, 8))
@@ -256,6 +276,11 @@ class SegmentListPanel(tkinter.Frame):
     """Notify the main window when the user requests a segment delete."""
 
     self._on_delete_requested()
+
+  def _handle_undo_button_clicked(self):
+    """Notify the main window when the user requests a segment edit undo."""
+
+    self._on_undo_requested()
 
 
 def compute_panel_width(segment_labels):

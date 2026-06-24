@@ -67,6 +67,7 @@ class MainWindow:
     self._slider_position_marker = None
     self._loaded_gpx_points = None
     self._loaded_gpx_segments = None
+    self._segment_edit_undo_stack = []
 
     self._build_menu_bar()
     self._bind_menu_accelerators()
@@ -375,6 +376,7 @@ class MainWindow:
     self._slider_position_marker = None
     self._loaded_gpx_points = None
     self._loaded_gpx_segments = None
+    self._segment_edit_undo_stack = []
     self._last_slider_timestamp = None
     self._right_sidebar_panel_width = None
     self._update_file_menu_state()
@@ -390,6 +392,7 @@ class MainWindow:
   def _display_gpx_points(self, gpx_points):
     """Store loaded points, mount the segment panel, and draw the visible track."""
 
+    self._segment_edit_undo_stack = []
     self._ensure_map_widget()
     self._loaded_gpx_points = gpx_points
     self._setup_segment_list_panel()
@@ -441,6 +444,71 @@ class MainWindow:
 
     self._loaded_gpx_points = gpx_points
 
+  def _push_segment_edit_undo_state(self):
+    """Snapshot segment structure and checkbox state before a split or delete."""
+
+    if self._loaded_gpx_segments is None:
+      return
+
+    segment_point_lists_snapshot = \
+      gis_graphical_editor.track_analysis.copy_gpx_segment_point_lists(
+        self._loaded_gpx_segments,
+      )
+    unchecked_first_points = []
+
+    if self._segment_list_panel is not None:
+      unchecked_first_points = \
+        self._segment_list_panel.collect_unchecked_segment_first_points()
+
+    self._segment_edit_undo_stack.append(
+      (segment_point_lists_snapshot, unchecked_first_points),
+    )
+    self._sync_segment_undo_button()
+
+  def _apply_loaded_gpx_segment_state(
+    self,
+    segment_point_lists,
+    unchecked_first_points,
+  ):
+    """Assign segment lists, rebuild the panel, and refresh the map."""
+
+    self._loaded_gpx_segments = segment_point_lists
+    self._rebuild_loaded_gpx_points_from_segments()
+    self._setup_segment_list_panel()
+
+    if self._segment_list_panel is not None:
+      self._segment_list_panel.apply_unchecked_segment_first_points(unchecked_first_points)
+
+    self._refresh_track_display()
+
+    if self._last_slider_timestamp is not None:
+      self._update_segment_split_button_state(self._last_slider_timestamp)
+
+  def _handle_segment_undo_requested(self):
+    """Restore the most recent segment structure snapshot from the undo stack."""
+
+    if not self._segment_edit_undo_stack:
+      return
+
+    segment_point_lists_snapshot, unchecked_first_points = \
+      self._segment_edit_undo_stack.pop()
+    self._apply_loaded_gpx_segment_state(
+      segment_point_lists_snapshot,
+      unchecked_first_points,
+    )
+    self._sync_segment_undo_button()
+
+  def _sync_segment_undo_button(self):
+    """Enable the Undo button only while segment edit history exists."""
+
+    if self._segment_list_panel is None:
+      return
+
+    if self._segment_edit_undo_stack:
+      self._segment_list_panel.set_undo_button_enabled(True)
+    else:
+      self._segment_list_panel.set_undo_button_enabled(False)
+
   def _handle_segment_split_requested(self):
     """Split the highlighted segment at the slider point into head and tail segments."""
 
@@ -480,14 +548,11 @@ class MainWindow:
 
     unchecked_first_points = \
       self._segment_list_panel.collect_unchecked_segment_first_points()
-    self._loaded_gpx_segments = updated_segment_point_lists
-    self._rebuild_loaded_gpx_points_from_segments()
-    self._setup_segment_list_panel()
-
-    if self._segment_list_panel is not None:
-      self._segment_list_panel.apply_unchecked_segment_first_points(unchecked_first_points)
-
-    self._refresh_track_display()
+    self._push_segment_edit_undo_state()
+    self._apply_loaded_gpx_segment_state(
+      updated_segment_point_lists,
+      unchecked_first_points,
+    )
 
   def _handle_segment_delete_requested(self):
     """Remove the highlighted segment after the user confirms the action."""
@@ -537,14 +602,11 @@ class MainWindow:
 
     unchecked_first_points = \
       self._segment_list_panel.collect_unchecked_segment_first_points()
-    self._loaded_gpx_segments = updated_segment_point_lists
-    self._rebuild_loaded_gpx_points_from_segments()
-    self._setup_segment_list_panel()
-
-    if self._segment_list_panel is not None:
-      self._segment_list_panel.apply_unchecked_segment_first_points(unchecked_first_points)
-
-    self._refresh_track_display()
+    self._push_segment_edit_undo_state()
+    self._apply_loaded_gpx_segment_state(
+      updated_segment_point_lists,
+      unchecked_first_points,
+    )
 
   def _update_segment_split_button_state(self, selected_timestamp):
     """Enable Split and Delete based on the slider's current segment context."""
@@ -794,11 +856,13 @@ class MainWindow:
       self._handle_segment_selection_changed,
       self._handle_segment_split_requested,
       self._handle_segment_delete_requested,
+      self._handle_segment_undo_requested,
       panel_width,
       self._track_display_options.use_metric_units,
       self._track_display_options.exclude_idle_segments,
     )
     self._segment_list_panel.pack(side=tkinter.BOTTOM, fill=tkinter.Y, expand=True)
+    self._sync_segment_undo_button()
 
   def _setup_track_metadata_panel_if_needed(self, gpx_points):
     """Mount point and segment metadata boxes when the track has a timestamp range."""

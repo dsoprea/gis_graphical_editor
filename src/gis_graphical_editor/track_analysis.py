@@ -877,6 +877,18 @@ def is_segment_split_allowed_at_point_index(point_index, point_count):
   return True
 
 
+def copy_gpx_segment_point_lists(segment_point_lists):
+  """Return a shallow copy of segment lists; GpxPointRecord values are shared."""
+
+  copied_segment_point_lists = []
+
+  # Copy each segment list so undo can restore membership without cloning points.
+  for segment_points in segment_point_lists:
+    copied_segment_point_lists.append(list(segment_points))
+
+  return copied_segment_point_lists
+
+
 def split_gpx_segment_point_lists_at_point_index(
   segment_point_lists,
   segment_points,

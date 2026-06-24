@@ -1038,3 +1038,38 @@ def test_remove_gpx_segment_from_segment_point_lists_returns_none_when_not_found
     )
 
   assert updated_segment_point_lists is None
+
+
+def test_copy_gpx_segment_point_lists_copies_structure_not_point_objects():
+  first_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    40.0,
+    -105.0,
+    datetime.datetime(2024, 6, 1, 8, 0, 0),
+  )
+  second_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    41.0,
+    -106.0,
+    datetime.datetime(2024, 6, 1, 10, 0, 0),
+  )
+  first_segment = [first_point, second_point]
+  third_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    42.0,
+    -107.0,
+    datetime.datetime(2024, 6, 1, 12, 0, 0),
+  )
+  second_segment = [third_point]
+  segment_point_lists = [first_segment, second_segment]
+
+  copied_segment_point_lists = \
+    gis_graphical_editor.track_analysis.copy_gpx_segment_point_lists(segment_point_lists)
+
+  assert copied_segment_point_lists is not segment_point_lists
+  assert copied_segment_point_lists[0] is not first_segment
+  assert copied_segment_point_lists[1] is not second_segment
+  assert copied_segment_point_lists[0][0] is first_point
+  assert copied_segment_point_lists[0][1] is second_point
+  assert copied_segment_point_lists[1][0] is third_point
+
+  copied_segment_point_lists.pop(0)
+
+  assert segment_point_lists == [first_segment, second_segment]
