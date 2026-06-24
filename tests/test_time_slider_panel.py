@@ -42,11 +42,15 @@ def test_format_current_slider_position_label_includes_point_position_suffix():
   timestamp = datetime.datetime(2024, 6, 1, 8, 0, 0, tzinfo=datetime.timezone.utc)
   label_text = gis_graphical_editor.time_slider_panel.format_current_slider_position_label(
     timestamp,
+    1,
+    3,
     2,
     5,
   )
 
-  assert label_text == "2024-06-01 08:00:00 UTC (3 of 5)"
+  assert label_text == \
+    "2024-06-01 08:00:00 UTC\n" \
+    "(Current: 2 of 3, All: 3 of 5)"
 
 
 def test_clamp_selected_seconds_clamps_before_earliest():

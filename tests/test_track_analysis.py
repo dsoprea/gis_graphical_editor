@@ -742,6 +742,65 @@ def test_find_timed_gpx_point_index_nearest_timestamp_returns_closest_index():
   assert point_index == 1
 
 
+def test_resolve_slider_position_counts_returns_segment_and_all_indices():
+  first_segment_first_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    40.0,
+    -105.0,
+    datetime.datetime(2024, 6, 1, 8, 0, 0),
+  )
+  first_segment_second_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    40.1,
+    -105.1,
+    datetime.datetime(2024, 6, 1, 8, 30, 0),
+  )
+  second_segment_first_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    41.0,
+    -106.0,
+    datetime.datetime(2024, 6, 1, 9, 0, 0),
+  )
+  second_segment_second_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    41.1,
+    -106.1,
+    datetime.datetime(2024, 6, 1, 9, 30, 0),
+  )
+  second_segment_third_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    41.2,
+    -106.2,
+    datetime.datetime(2024, 6, 1, 10, 0, 0),
+  )
+  first_segment = gis_graphical_editor.track_analysis.TrackSegmentSummary(
+    [first_segment_first_point, first_segment_second_point],
+    first_segment_first_point.timestamp,
+    first_segment_second_point.timestamp,
+  )
+  second_segment = gis_graphical_editor.track_analysis.TrackSegmentSummary(
+    [
+      second_segment_first_point,
+      second_segment_second_point,
+      second_segment_third_point,
+    ],
+    second_segment_first_point.timestamp,
+    second_segment_third_point.timestamp,
+  )
+  segment_summaries = [first_segment, second_segment]
+  timed_gpx_points = [
+    first_segment_first_point,
+    first_segment_second_point,
+    second_segment_first_point,
+    second_segment_second_point,
+    second_segment_third_point,
+  ]
+
+  position_counts = \
+    gis_graphical_editor.track_analysis.resolve_slider_position_counts(
+      segment_summaries,
+      timed_gpx_points,
+      2,
+    )
+
+  assert position_counts == (0, 3, 2, 5)
+
+
 def test_format_gpx_point_metadata_lines_includes_additional_metadata():
   gpx_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
     40.0,

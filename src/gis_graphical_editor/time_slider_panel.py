@@ -75,17 +75,29 @@ def format_slider_endpoint_timestamp(timestamp):
   )
 
 
-def format_current_slider_position_label(timestamp, point_index, point_count):
-  """Return the centered slider label with a one-based point position suffix."""
+def format_current_slider_position_label(
+  timestamp,
+  segment_point_index,
+  segment_point_count,
+  all_point_index,
+  all_point_count,
+):
+  """Return the centered slider label with segment and all-scope position suffixes."""
 
   timestamp_text = format_slider_endpoint_timestamp(timestamp)
-  position_number = point_index + 1
+  segment_position_number = segment_point_index + 1
+  all_position_number = all_point_index + 1
 
-  return "{timestamp_text} ({position_number} of {point_count})".format(
-    timestamp_text=timestamp_text,
-    position_number=position_number,
-    point_count=point_count,
-  )
+  return \
+    "{timestamp_text}\n" \
+    "(Current: {segment_position_number} of {segment_point_count}, " \
+    "All: {all_position_number} of {all_point_count})".format(
+      timestamp_text=timestamp_text,
+      segment_position_number=segment_position_number,
+      segment_point_count=segment_point_count,
+      all_position_number=all_position_number,
+      all_point_count=all_point_count,
+    )
 
 
 def clamp_selected_seconds(selected_seconds, earliest_timestamp, latest_timestamp):
@@ -113,6 +125,7 @@ class TimeSliderPanel(tkinter.Frame):
     latest_timestamp,
     timed_gpx_points,
     on_timestamp_changed,
+    segment_summaries=None,
   ):
     """Build the slider UI and invoke on_timestamp_changed as the user scrubs."""
 
@@ -121,6 +134,7 @@ class TimeSliderPanel(tkinter.Frame):
     self._earliest_timestamp = earliest_timestamp
     self._latest_timestamp = latest_timestamp
     self._timed_gpx_points = timed_gpx_points
+    self._segment_summaries = segment_summaries
     self._on_timestamp_changed = on_timestamp_changed
     self._reference_timezone = earliest_timestamp.tzinfo
     self._earliest_seconds = earliest_timestamp.timestamp()
@@ -273,10 +287,22 @@ class TimeSliderPanel(tkinter.Frame):
       point_index = 0
 
     self._current_point_index = point_index
+    position_counts = \
+      gis_graphical_editor.track_analysis.resolve_slider_position_counts(
+        self._segment_summaries,
+        self._timed_gpx_points,
+        point_index,
+      )
+    segment_point_index = position_counts[0]
+    segment_point_count = position_counts[1]
+    all_point_index = position_counts[2]
+    all_point_count = position_counts[3]
     current_label_text = format_current_slider_position_label(
       selected_timestamp,
-      point_index,
-      len(self._timed_gpx_points),
+      segment_point_index,
+      segment_point_count,
+      all_point_index,
+      all_point_count,
     )
 
     self._current_time_label.config(text=current_label_text)
@@ -460,11 +486,18 @@ class TimeSliderPanel(tkinter.Frame):
     self._stop_play_stepping()
     self._apply_selected_seconds(selected_timestamp.timestamp())
 
-  def update_timed_gpx_points(self, timed_gpx_points, earliest_timestamp, latest_timestamp):
+  def update_timed_gpx_points(
+    self,
+    timed_gpx_points,
+    earliest_timestamp,
+    latest_timestamp,
+    segment_summaries=None,
+  ):
     """Replace timed points and slider endpoints without destroying the panel."""
 
     self._stop_play_stepping()
     self._timed_gpx_points = timed_gpx_points
+    self._segment_summaries = segment_summaries
     self._earliest_timestamp = earliest_timestamp
     self._latest_timestamp = latest_timestamp
     self._reference_timezone = earliest_timestamp.tzinfo

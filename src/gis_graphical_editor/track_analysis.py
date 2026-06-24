@@ -837,6 +837,31 @@ def find_gpx_point_index_in_segment_points(segment_points, gpx_point):
   return None
 
 
+def resolve_slider_position_counts(segment_summaries, timed_gpx_points, timed_point_index):
+  """Return segment and all-scope zero-based indices and counts for the slider label.
+
+  Callers must ensure timed_point_index refers to a point owned by segment_summaries.
+  """
+
+  selected_gpx_point = timed_gpx_points[timed_point_index]
+  segment_summary = find_segment_summary_for_gpx_point(
+    segment_summaries,
+    selected_gpx_point,
+  )
+  segment_point_index = find_gpx_point_index_in_segment_points(
+    segment_summary.segment_points,
+    selected_gpx_point,
+  )
+  all_point_count = len(timed_gpx_points)
+
+  return (
+    segment_point_index,
+    segment_summary.point_count,
+    timed_point_index,
+    all_point_count,
+  )
+
+
 def is_segment_split_allowed_at_point_index(point_index, point_count):
   """Return True when a split can peel tail points off without emptying either piece."""
 
