@@ -680,10 +680,13 @@ class MainWindow:
       return
 
     earliest_timestamp, latest_timestamp = timestamp_range
+    timed_gpx_points = \
+      gis_graphical_editor.track_analysis.collect_timed_gpx_points(gpx_points)
     self._time_slider_panel = gis_graphical_editor.time_slider_panel.TimeSliderPanel(
       self._map_column_frame,
       earliest_timestamp,
       latest_timestamp,
+      timed_gpx_points,
       self._handle_slider_timestamp_changed,
     )
     self._time_slider_panel.pack(side=tkinter.TOP, fill=tkinter.X, before=self._map_widget)

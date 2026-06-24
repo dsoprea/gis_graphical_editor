@@ -659,6 +659,35 @@ def get_timestamp_range(gpx_points):
   return earliest_timestamp, latest_timestamp
 
 
+def collect_timed_gpx_points(gpx_points):
+  """Return gpx_points that have timestamps, preserving order."""
+
+  timed_gpx_points = []
+
+  for gpx_point in gpx_points:
+    if gpx_point.timestamp is not None:
+      timed_gpx_points.append(gpx_point)
+
+  return timed_gpx_points
+
+
+def find_timed_gpx_point_index_nearest_timestamp(timed_gpx_points, target_timestamp):
+  """Return the index of the timed point closest to target_timestamp."""
+
+  nearest_point_index = None
+  smallest_timestamp_delta = None
+
+  # Scan timed points and keep the index with the smallest timestamp distance.
+  for point_index, gpx_point in enumerate(timed_gpx_points):
+    timestamp_delta = abs((gpx_point.timestamp - target_timestamp).total_seconds())
+
+    if smallest_timestamp_delta is None or timestamp_delta < smallest_timestamp_delta:
+      smallest_timestamp_delta = timestamp_delta
+      nearest_point_index = point_index
+
+  return nearest_point_index
+
+
 def find_position_at_timestamp(gpx_points, target_timestamp):
   """Return (latitude, longitude) for target_timestamp along the GPX path."""
 

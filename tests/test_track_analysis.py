@@ -638,6 +638,57 @@ def test_find_track_segment_summary_index_at_timestamp_returns_none_for_empty_li
   assert segment_index is None
 
 
+def test_collect_timed_gpx_points_preserves_order_and_skips_untimed_points():
+  first_timed_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    40.0,
+    -105.0,
+    datetime.datetime(2024, 6, 1, 8, 0, 0),
+  )
+  untimed_point = gis_graphical_editor.gpx_utility.GpxPointRecord(40.1, -105.1, None)
+  second_timed_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    40.2,
+    -105.2,
+    datetime.datetime(2024, 6, 1, 9, 0, 0),
+  )
+
+  timed_gpx_points = gis_graphical_editor.track_analysis.collect_timed_gpx_points([
+    first_timed_point,
+    untimed_point,
+    second_timed_point,
+  ])
+
+  assert timed_gpx_points == [first_timed_point, second_timed_point]
+
+
+def test_find_timed_gpx_point_index_nearest_timestamp_returns_closest_index():
+  timed_gpx_points = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(
+      40.0,
+      -105.0,
+      datetime.datetime(2024, 6, 1, 8, 0, 0),
+    ),
+    gis_graphical_editor.gpx_utility.GpxPointRecord(
+      40.1,
+      -105.1,
+      datetime.datetime(2024, 6, 1, 10, 0, 0),
+    ),
+    gis_graphical_editor.gpx_utility.GpxPointRecord(
+      40.2,
+      -105.2,
+      datetime.datetime(2024, 6, 1, 12, 0, 0),
+    ),
+  ]
+  target_timestamp = datetime.datetime(2024, 6, 1, 10, 30, 0)
+
+  point_index = \
+    gis_graphical_editor.track_analysis.find_timed_gpx_point_index_nearest_timestamp(
+      timed_gpx_points,
+      target_timestamp,
+    )
+
+  assert point_index == 1
+
+
 def test_format_gpx_point_metadata_lines_includes_additional_metadata():
   gpx_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
     40.0,
