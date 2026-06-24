@@ -157,8 +157,8 @@ class TimeSliderPanel(tkinter.Frame):
         slider_button_width,
         slider_button_height,
       )
-    self._rewind_play_icon = \
-      gis_graphical_editor.map_icon_utility.create_rewind_play_button_icon(
+    self._reverse_play_icon = \
+      gis_graphical_editor.map_icon_utility.create_reverse_play_button_icon(
         self,
         icon_width,
         icon_height,
@@ -175,8 +175,8 @@ class TimeSliderPanel(tkinter.Frame):
         icon_width,
         icon_height,
       )
-    self._fast_forward_play_icon = \
-      gis_graphical_editor.map_icon_utility.create_fast_forward_play_button_icon(
+    self._forward_play_icon = \
+      gis_graphical_editor.map_icon_utility.create_forward_play_button_icon(
         self,
         icon_width,
         icon_height,
@@ -202,12 +202,12 @@ class TimeSliderPanel(tkinter.Frame):
 
     self._create_slider_button_icons(slider_row)
 
-    self._rewind_play_button = self._build_slider_image_button(
+    self._reverse_play_button = self._build_slider_image_button(
       slider_row,
-      self._rewind_play_icon,
-      self._handle_rewind_play_click,
+      self._reverse_play_icon,
+      self._handle_reverse_play_click,
     )
-    self._rewind_play_button.pack(side=tkinter.LEFT, padx=(8, 0))
+    self._reverse_play_button.pack(side=tkinter.LEFT, padx=(8, 0))
 
     self._previous_point_button = self._build_slider_image_button(
       slider_row,
@@ -234,12 +234,12 @@ class TimeSliderPanel(tkinter.Frame):
     )
     self._next_point_button.pack(side=tkinter.LEFT)
 
-    self._fast_forward_play_button = self._build_slider_image_button(
+    self._forward_play_button = self._build_slider_image_button(
       slider_row,
-      self._fast_forward_play_icon,
-      self._handle_fast_forward_play_click,
+      self._forward_play_icon,
+      self._handle_forward_play_click,
     )
-    self._fast_forward_play_button.pack(side=tkinter.LEFT, padx=(8, 0))
+    self._forward_play_button.pack(side=tkinter.LEFT, padx=(8, 0))
 
     latest_label_text = format_slider_endpoint_timestamp(self._latest_timestamp)
     self._latest_label = tkinter.Label(slider_row, text=latest_label_text)
@@ -326,8 +326,8 @@ class TimeSliderPanel(tkinter.Frame):
 
     self._play_direction = None
 
-  def _handle_rewind_play_click(self):
-    """Step backward on an interval until the first point, or stop if already playing."""
+  def _handle_reverse_play_click(self):
+    """Step backward on an interval until the first point, or stop reverse play."""
 
     if self._play_direction == "backward":
       self._stop_play_stepping()
@@ -342,8 +342,8 @@ class TimeSliderPanel(tkinter.Frame):
     self._play_direction = "backward"
     self._handle_play_step_tick()
 
-  def _handle_fast_forward_play_click(self):
-    """Step forward on an interval until the last point, or stop if already playing."""
+  def _handle_forward_play_click(self):
+    """Step forward on an interval until the last point, or stop forward play."""
 
     if self._play_direction == "forward":
       self._stop_play_stepping()
@@ -455,22 +455,22 @@ class TimeSliderPanel(tkinter.Frame):
 
     if self._current_point_index <= 0:
       previous_button_state = tkinter.DISABLED
-      rewind_play_button_state = tkinter.DISABLED
+      reverse_play_button_state = tkinter.DISABLED
     else:
       previous_button_state = tkinter.NORMAL
-      rewind_play_button_state = tkinter.NORMAL
+      reverse_play_button_state = tkinter.NORMAL
 
     if self._current_point_index >= last_point_index:
       next_button_state = tkinter.DISABLED
-      fast_forward_play_button_state = tkinter.DISABLED
+      forward_play_button_state = tkinter.DISABLED
     else:
       next_button_state = tkinter.NORMAL
-      fast_forward_play_button_state = tkinter.NORMAL
+      forward_play_button_state = tkinter.NORMAL
 
     self._previous_point_button.config(state=previous_button_state)
     self._next_point_button.config(state=next_button_state)
-    self._rewind_play_button.config(state=rewind_play_button_state)
-    self._fast_forward_play_button.config(state=fast_forward_play_button_state)
+    self._reverse_play_button.config(state=reverse_play_button_state)
+    self._forward_play_button.config(state=forward_play_button_state)
 
   def _handle_scale_change(self, scale_value):
     """Update the centered label and notify the map of the selected timestamp."""

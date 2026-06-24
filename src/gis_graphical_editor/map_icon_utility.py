@@ -106,8 +106,8 @@ def _create_slider_button_photo_image(master, image):
   return photo_image
 
 
-def build_vcr_play_button_image(icon_width, icon_height):
-  """Return a PIL image with a single right-pointing VCR play triangle."""
+def build_forward_play_button_image(icon_width, icon_height):
+  """Return a PIL image with a single right-pointing play triangle for forward play."""
 
   image = PIL.Image.new(
     "RGBA",
@@ -177,32 +177,26 @@ def build_next_step_button_image(icon_width, icon_height):
   return previous_image.transpose(PIL.Image.FLIP_LEFT_RIGHT)
 
 
-def build_rewind_play_button_image(icon_width, icon_height):
-  """Return a left-pointing VCR play triangle flipped from the forward icon."""
+def build_reverse_play_button_image(icon_width, icon_height):
+  """Return a left-pointing play triangle flipped from the forward play icon."""
 
-  forward_image = build_vcr_play_button_image(icon_width, icon_height)
+  forward_image = build_forward_play_button_image(icon_width, icon_height)
 
   return forward_image.transpose(PIL.Image.FLIP_LEFT_RIGHT)
 
 
-def build_fast_forward_play_button_image(icon_width, icon_height):
-  """Return the right-pointing VCR play triangle used for fast-forward play."""
+def create_reverse_play_button_icon(master, icon_width, icon_height):
+  """Return a PhotoImage with a left-pointing play triangle for reverse play."""
 
-  return build_vcr_play_button_image(icon_width, icon_height)
-
-
-def create_rewind_play_button_icon(master, icon_width, icon_height):
-  """Return a PhotoImage with a left-pointing VCR play triangle for rewind play."""
-
-  image = build_rewind_play_button_image(icon_width, icon_height)
+  image = build_reverse_play_button_image(icon_width, icon_height)
 
   return _create_slider_button_photo_image(master, image)
 
 
-def create_fast_forward_play_button_icon(master, icon_width, icon_height):
-  """Return a PhotoImage with a right-pointing VCR play triangle for fast-forward play."""
+def create_forward_play_button_icon(master, icon_width, icon_height):
+  """Return a PhotoImage with a right-pointing play triangle for forward play."""
 
-  image = build_fast_forward_play_button_image(icon_width, icon_height)
+  image = build_forward_play_button_image(icon_width, icon_height)
 
   return _create_slider_button_photo_image(master, image)
 

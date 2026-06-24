@@ -32,7 +32,7 @@ def main(argv=None):
   logging.basicConfig(level=logging.INFO)
 
   argument_parser = argparse.ArgumentParser(
-    description="View GPX tracks on an OpenStreetMap map.",
+    description="View GPX tracks on an OpenStreetMap map; split or delete segments along the time slider.",
   )
   argument_parser.add_argument(
     "--mark-hours",
