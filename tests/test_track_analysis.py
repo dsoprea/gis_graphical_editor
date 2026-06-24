@@ -424,6 +424,59 @@ def test_format_track_segment_interval_label_describes_untimed_segments():
     "no timestamps"
 
 
+def test_format_track_segment_delete_confirmation_text_includes_timestamps_and_point_count():
+  segment_points = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(
+      40.0,
+      -105.0,
+      datetime.datetime(2024, 6, 1, 8, 0, 0),
+    ),
+    gis_graphical_editor.gpx_utility.GpxPointRecord(
+      40.1,
+      -105.1,
+      datetime.datetime(2024, 6, 1, 10, 0, 0),
+    ),
+  ]
+  segment_summary = gis_graphical_editor.track_analysis.TrackSegmentSummary(
+    segment_points,
+    datetime.datetime(2024, 6, 1, 8, 0, 0),
+    datetime.datetime(2024, 6, 1, 10, 0, 0),
+  )
+
+  confirmation_text = \
+    gis_graphical_editor.track_analysis.format_track_segment_delete_confirmation_text(
+      segment_summary,
+    )
+
+  assert confirmation_text.startswith("From:")
+  assert "To:" in confirmation_text
+  assert "Points: 2" in confirmation_text
+  assert "Distance:" not in confirmation_text
+  assert "Interval:" not in confirmation_text
+  assert "Velocity:" not in confirmation_text
+
+
+def test_format_track_segment_delete_confirmation_text_describes_untimed_segments():
+  segment_points = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(40.0, -105.0, None),
+    gis_graphical_editor.gpx_utility.GpxPointRecord(40.1, -105.1, None),
+  ]
+  segment_summary = gis_graphical_editor.track_analysis.TrackSegmentSummary(
+    segment_points,
+    None,
+    None,
+  )
+
+  confirmation_text = \
+    gis_graphical_editor.track_analysis.format_track_segment_delete_confirmation_text(
+      segment_summary,
+    )
+
+  assert confirmation_text == \
+    "Points: 2\n" \
+    "no timestamps"
+
+
 def test_build_hour_interval_markers_uses_kilometers_when_metric_requested():
   start_timestamp = datetime.datetime(2024, 6, 1, 8, 0, 0)
   middle_timestamp = datetime.datetime(2024, 6, 1, 9, 0, 0)
@@ -809,6 +862,120 @@ def test_split_gpx_segment_point_lists_at_point_index_returns_none_for_invalid_s
       [segment_points],
       segment_points,
       0,
+    )
+
+  assert updated_segment_point_lists is None
+
+
+def test_remove_gpx_segment_from_segment_point_lists_removes_target_segment():
+  first_segment = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(
+      40.0,
+      -105.0,
+      datetime.datetime(2024, 6, 1, 8, 0, 0),
+    ),
+  ]
+  second_segment = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(
+      41.0,
+      -106.0,
+      datetime.datetime(2024, 6, 1, 10, 0, 0),
+    ),
+  ]
+  third_segment = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(
+      42.0,
+      -107.0,
+      datetime.datetime(2024, 6, 1, 12, 0, 0),
+    ),
+  ]
+  segment_point_lists = [first_segment, second_segment, third_segment]
+
+  updated_segment_point_lists = \
+    gis_graphical_editor.track_analysis.remove_gpx_segment_from_segment_point_lists(
+      segment_point_lists,
+      second_segment,
+    )
+
+  assert updated_segment_point_lists == [first_segment, third_segment]
+  assert updated_segment_point_lists[0] is first_segment
+  assert updated_segment_point_lists[1] is third_segment
+
+
+def test_remove_gpx_segment_from_segment_point_lists_removes_first_segment():
+  first_segment = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(
+      40.0,
+      -105.0,
+      datetime.datetime(2024, 6, 1, 8, 0, 0),
+    ),
+  ]
+  second_segment = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(
+      41.0,
+      -106.0,
+      datetime.datetime(2024, 6, 1, 10, 0, 0),
+    ),
+  ]
+  segment_point_lists = [first_segment, second_segment]
+
+  updated_segment_point_lists = \
+    gis_graphical_editor.track_analysis.remove_gpx_segment_from_segment_point_lists(
+      segment_point_lists,
+      first_segment,
+    )
+
+  assert updated_segment_point_lists == [second_segment]
+  assert updated_segment_point_lists[0] is second_segment
+
+
+def test_remove_gpx_segment_from_segment_point_lists_removes_last_segment():
+  first_segment = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(
+      40.0,
+      -105.0,
+      datetime.datetime(2024, 6, 1, 8, 0, 0),
+    ),
+  ]
+  second_segment = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(
+      41.0,
+      -106.0,
+      datetime.datetime(2024, 6, 1, 10, 0, 0),
+    ),
+  ]
+  segment_point_lists = [first_segment, second_segment]
+
+  updated_segment_point_lists = \
+    gis_graphical_editor.track_analysis.remove_gpx_segment_from_segment_point_lists(
+      segment_point_lists,
+      second_segment,
+    )
+
+  assert updated_segment_point_lists == [first_segment]
+  assert updated_segment_point_lists[0] is first_segment
+
+
+def test_remove_gpx_segment_from_segment_point_lists_returns_none_when_not_found():
+  segment_points = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(
+      40.0,
+      -105.0,
+      datetime.datetime(2024, 6, 1, 8, 0, 0),
+    ),
+  ]
+  other_segment = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(
+      41.0,
+      -106.0,
+      datetime.datetime(2024, 6, 1, 10, 0, 0),
+    ),
+  ]
+
+  updated_segment_point_lists = \
+    gis_graphical_editor.track_analysis.remove_gpx_segment_from_segment_point_lists(
+      [other_segment],
+      segment_points,
     )
 
   assert updated_segment_point_lists is None

@@ -489,14 +489,72 @@ class MainWindow:
 
     self._refresh_track_display()
 
+  def _handle_segment_delete_requested(self):
+    """Remove the highlighted segment after the user confirms the action."""
+
+    if self._loaded_gpx_segments is None or self._segment_list_panel is None:
+      return
+
+    if self._last_slider_timestamp is None:
+      return
+
+    visible_gpx_points = self._get_visible_gpx_points()
+    nearest_gpx_point = \
+      gis_graphical_editor.track_analysis.find_gpx_point_nearest_timestamp(
+        visible_gpx_points,
+        self._last_slider_timestamp,
+      )
+    segment_summary = self._segment_list_panel.find_segment_summary_for_gpx_point(
+      nearest_gpx_point,
+    )
+
+    if segment_summary is None:
+      return
+
+    segment_label = \
+      gis_graphical_editor.track_analysis.format_track_segment_delete_confirmation_text(
+        segment_summary,
+      )
+    confirmation_message = \
+      "Delete this segment?\n\n{segment_label}".format(segment_label=segment_label)
+    delete_confirmed = tkinter.messagebox.askyesno(
+      "Delete segment",
+      confirmation_message,
+      parent=self._root,
+    )
+
+    if not delete_confirmed:
+      return
+
+    updated_segment_point_lists = \
+      gis_graphical_editor.track_analysis.remove_gpx_segment_from_segment_point_lists(
+        self._loaded_gpx_segments,
+        segment_summary.segment_points,
+      )
+
+    if updated_segment_point_lists is None:
+      return
+
+    unchecked_first_points = \
+      self._segment_list_panel.collect_unchecked_segment_first_points()
+    self._loaded_gpx_segments = updated_segment_point_lists
+    self._rebuild_loaded_gpx_points_from_segments()
+    self._setup_segment_list_panel()
+
+    if self._segment_list_panel is not None:
+      self._segment_list_panel.apply_unchecked_segment_first_points(unchecked_first_points)
+
+    self._refresh_track_display()
+
   def _update_segment_split_button_state(self, selected_timestamp):
-    """Enable Split only when the slider sits on a splittable interior segment point."""
+    """Enable Split and Delete based on the slider's current segment context."""
 
     if self._segment_list_panel is None or self._time_slider_panel is None:
       return
 
     if selected_timestamp is None:
       self._segment_list_panel.set_split_button_enabled(False)
+      self._segment_list_panel.set_delete_button_enabled(False)
 
       return
 
@@ -512,8 +570,11 @@ class MainWindow:
 
     if segment_summary is None:
       self._segment_list_panel.set_split_button_enabled(False)
+      self._segment_list_panel.set_delete_button_enabled(False)
 
       return
+
+    self._segment_list_panel.set_delete_button_enabled(True)
 
     point_index = \
       gis_graphical_editor.track_analysis.find_gpx_point_index_in_segment_points(
@@ -732,6 +793,7 @@ class MainWindow:
       segment_summaries,
       self._handle_segment_selection_changed,
       self._handle_segment_split_requested,
+      self._handle_segment_delete_requested,
       panel_width,
       self._track_display_options.use_metric_units,
       self._track_display_options.exclude_idle_segments,

@@ -341,6 +341,37 @@ def format_track_segment_interval_label(
     )
 
 
+def format_track_segment_delete_confirmation_text(segment_summary):
+  """Return timestamp and point-count lines for a segment delete confirmation dialog."""
+
+  if segment_summary.earliest_timestamp is None or segment_summary.latest_timestamp is None:
+    return \
+      "Points: {point_count}\n" \
+      "no timestamps".format(point_count=segment_summary.point_count)
+
+  earliest_text = \
+    gis_graphical_editor.time_slider_panel.format_display_timestamp(
+      segment_summary.earliest_timestamp,
+      include_date=True,
+      include_day_of_week=True,
+    )
+  latest_text = \
+    gis_graphical_editor.time_slider_panel.format_display_timestamp(
+      segment_summary.latest_timestamp,
+      include_date=True,
+      include_day_of_week=True,
+    )
+
+  return \
+    "From: {earliest_text}\n" \
+    "To: {latest_text}\n" \
+    "Points: {point_count}".format(
+      earliest_text=earliest_text,
+      latest_text=latest_text,
+      point_count=segment_summary.point_count,
+    )
+
+
 def _build_track_segment_summary_sort_key(segment_summary):
   """Sort timed segments by earliest timestamp and untimed segments last."""
 
@@ -851,6 +882,28 @@ def split_gpx_segment_point_lists_at_point_index(
   updated_segment_point_lists = list(segment_point_lists)
   updated_segment_point_lists[segment_list_index] = head_points
   updated_segment_point_lists.insert(segment_list_index + 1, tail_points)
+
+  return updated_segment_point_lists
+
+
+def remove_gpx_segment_from_segment_point_lists(segment_point_lists, segment_points):
+  """Return a new segment list with segment_points removed, or None if not found."""
+
+  segment_list_index = None
+
+  # Locate the mutable segment list inside the loaded GPX segment collection.
+  for list_index, segment_point_list in enumerate(segment_point_lists):
+    if segment_point_list is segment_points:
+      segment_list_index = list_index
+
+      break
+
+  if segment_list_index is None:
+    return None
+
+  # Drop the matched segment while preserving order for the remaining lists.
+  updated_segment_point_lists = list(segment_point_lists)
+  updated_segment_point_lists.pop(segment_list_index)
 
   return updated_segment_point_lists
 

@@ -23,6 +23,7 @@ class SegmentListPanel(tkinter.Frame):
     segment_summaries,
     on_selection_changed,
     on_split_requested,
+    on_delete_requested,
     panel_width,
     use_metric_units=False,
     exclude_idle_segments=False,
@@ -45,6 +46,7 @@ class SegmentListPanel(tkinter.Frame):
     self._segment_summaries = segment_summaries
     self._on_selection_changed = on_selection_changed
     self._on_split_requested = on_split_requested
+    self._on_delete_requested = on_delete_requested
     self._selection_variables = []
     self._segment_checkbuttons = []
     self._panel_width = panel_width
@@ -123,6 +125,16 @@ class SegmentListPanel(tkinter.Frame):
 
     self._split_button.config(state=split_button_state)
 
+  def set_delete_button_enabled(self, enabled):
+    """Enable or disable the Delete button above the segment checklist."""
+
+    if enabled:
+      delete_button_state = tkinter.NORMAL
+    else:
+      delete_button_state = tkinter.DISABLED
+
+    self._delete_button.config(state=delete_button_state)
+
   def collect_unchecked_segment_first_points(self):
     """Return the first point of every segment whose checkbox is currently cleared."""
 
@@ -168,6 +180,14 @@ class SegmentListPanel(tkinter.Frame):
       state=tkinter.DISABLED,
     )
     self._split_button.pack(side=tkinter.RIGHT)
+
+    self._delete_button = tkinter.Button(
+      header_row,
+      text="Delete",
+      command=self._handle_delete_button_clicked,
+      state=tkinter.DISABLED,
+    )
+    self._delete_button.pack(side=tkinter.RIGHT)
 
     list_container = tkinter.Frame(self)
     list_container.pack(fill=tkinter.BOTH, expand=True, padx=8, pady=(0, 8))
@@ -231,6 +251,11 @@ class SegmentListPanel(tkinter.Frame):
     """Notify the main window when the user requests a segment split."""
 
     self._on_split_requested()
+
+  def _handle_delete_button_clicked(self):
+    """Notify the main window when the user requests a segment delete."""
+
+    self._on_delete_requested()
 
 
 def compute_panel_width(segment_labels):
