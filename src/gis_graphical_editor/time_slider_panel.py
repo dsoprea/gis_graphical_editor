@@ -1,19 +1,16 @@
 """Time slider for selecting a position along a timestamped GPX track."""
 
 import datetime
-import re
 import tkinter
 
+import gis_graphical_editor.map_icon_utility
 import gis_graphical_editor.track_analysis
 
 
 _TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
 _TIMESTAMP_WITH_DAY_OF_WEEK_FORMAT = "%A %Y-%m-%d %H:%M:%S"
 _TIME_ONLY_FORMAT = "%H:%M:%S"
-_PREVIOUS_POINT_BUTTON_TEXT = "<"
-_NEXT_POINT_BUTTON_TEXT = ">"
-_CURRENT_POSITION_SUFFIX_PATTERN = re.compile(r" \(\d+ of \d+\)$")
-_CURRENT_TIME_ENTRY_WIDTH = 40
+_PLAY_STEP_INTERVAL_MILLISECONDS = 250
 
 
 def format_timezone_label(timestamp):
@@ -91,129 +88,6 @@ def format_current_slider_position_label(timestamp, point_index, point_count):
   )
 
 
-def _is_timezone_token(candidate_token):
-  """Return whether a trailing token may be a slider timezone label."""
-
-  if candidate_token == "UTC":
-    return True
-
-  if candidate_token.startswith("UTC") and len(candidate_token) > 3:
-    return True
-
-  return False
-
-
-def _parse_utc_offset_timezone_token(timezone_token):
-  """Return a fixed-offset timezone for UTC±HH:MM tokens."""
-
-  if timezone_token == "UTC":
-    return datetime.timezone.utc
-
-  if not timezone_token.startswith("UTC"):
-    return None
-
-  offset_text = timezone_token[3:]
-
-  if len(offset_text) != 6:
-    return None
-
-  if offset_text[0] not in ("+", "-"):
-    return None
-
-  if offset_text[3] != ":":
-    return None
-
-  offset_hours_text = offset_text[1:3]
-  offset_minutes_text = offset_text[4:6]
-
-  if not offset_hours_text.isdigit() or not offset_minutes_text.isdigit():
-    return None
-
-  offset_hours = int(offset_hours_text)
-  offset_minutes = int(offset_minutes_text)
-  offset_sign = 1
-
-  if offset_text[0] == "-":
-    offset_sign = -1
-
-  offset_delta = datetime.timedelta(
-    hours=offset_sign * offset_hours,
-    minutes=offset_sign * offset_minutes,
-  )
-
-  return datetime.timezone(offset_delta)
-
-
-def _parse_timezone_token(timezone_token, reference_timezone):
-  """Resolve a timezone label token into a tzinfo object."""
-
-  if _is_timezone_token(timezone_token):
-    return _parse_utc_offset_timezone_token(timezone_token)
-
-  if reference_timezone is not None:
-    reference_sample = datetime.datetime(2000, 1, 1, 12, 0, 0, tzinfo=reference_timezone)
-    reference_timezone_name = reference_sample.tzname()
-
-    if reference_timezone_name == timezone_token:
-      return reference_timezone
-
-  return None
-
-
-def _strip_current_position_suffix(entered_text):
-  """Remove an optional trailing point-position suffix before timestamp parsing."""
-
-  return _CURRENT_POSITION_SUFFIX_PATTERN.sub("", entered_text)
-
-
-def parse_slider_endpoint_timestamp(entered_text, reference_timezone):
-  """Parse a slider endpoint timestamp string back into a datetime."""
-
-  timestamp_text = entered_text
-  timezone_token = None
-  timestamp_parts = timestamp_text.rsplit(" ", 1)
-
-  if len(timestamp_parts) == 2:
-    candidate_timezone = timestamp_parts[1]
-
-    if _is_timezone_token(candidate_timezone):
-      timestamp_text = timestamp_parts[0]
-      timezone_token = candidate_timezone
-    elif reference_timezone is not None:
-      reference_sample = datetime.datetime(2000, 1, 1, 12, 0, 0, tzinfo=reference_timezone)
-      reference_timezone_name = reference_sample.tzname()
-
-      if reference_timezone_name == candidate_timezone:
-        timestamp_text = timestamp_parts[0]
-        timezone_token = candidate_timezone
-
-  try:
-    naive_timestamp = datetime.datetime.strptime(timestamp_text, _TIMESTAMP_FORMAT)
-  except ValueError:
-    return None
-
-  if timezone_token is not None:
-    parsed_timezone = _parse_timezone_token(timezone_token, reference_timezone)
-
-    if parsed_timezone is None:
-      return None
-
-    return naive_timestamp.replace(tzinfo=parsed_timezone)
-
-  if reference_timezone is not None:
-    return naive_timestamp.replace(tzinfo=reference_timezone)
-
-  return naive_timestamp
-
-
-def parse_current_slider_position_text(entered_text, reference_timezone):
-  """Parse centered slider text that may include a point-position suffix."""
-
-  timestamp_text = _strip_current_position_suffix(entered_text)
-
-  return parse_slider_endpoint_timestamp(timestamp_text, reference_timezone)
-
-
 def clamp_selected_seconds(selected_seconds, earliest_timestamp, latest_timestamp):
   """Clamp epoch seconds to the inclusive track timestamp span."""
 
@@ -230,7 +104,7 @@ def clamp_selected_seconds(selected_seconds, earliest_timestamp, latest_timestam
 
 
 class TimeSliderPanel(tkinter.Frame):
-  """Slider row with earliest/latest labels and a centered current-time entry."""
+  """Slider row with earliest/latest labels and a centered current-time label."""
 
   def __init__(
     self,
@@ -253,12 +127,57 @@ class TimeSliderPanel(tkinter.Frame):
     self._latest_seconds = latest_timestamp.timestamp()
     self._current_point_index = 0
     self._applying_selected_seconds = False
+    self._play_direction = None
+    self._play_after_job = None
 
     self._build_widgets()
     self._apply_selected_seconds(self._earliest_seconds)
 
+  def _create_slider_button_icons(self, slider_row):
+    """Build play and step icons from map_icon_utility at a shared slider button size."""
+
+    slider_button_width, slider_button_height = \
+      gis_graphical_editor.map_icon_utility.measure_slider_button_pixel_size(slider_row)
+    icon_width, icon_height = \
+      gis_graphical_editor.map_icon_utility.compute_slider_button_icon_pixel_size(
+        slider_button_width,
+        slider_button_height,
+      )
+    self._rewind_play_icon = \
+      gis_graphical_editor.map_icon_utility.create_rewind_play_button_icon(
+        self,
+        icon_width,
+        icon_height,
+      )
+    self._previous_point_icon = \
+      gis_graphical_editor.map_icon_utility.create_previous_step_button_icon(
+        self,
+        icon_width,
+        icon_height,
+      )
+    self._next_point_icon = \
+      gis_graphical_editor.map_icon_utility.create_next_step_button_icon(
+        self,
+        icon_width,
+        icon_height,
+      )
+    self._fast_forward_play_icon = \
+      gis_graphical_editor.map_icon_utility.create_fast_forward_play_button_icon(
+        self,
+        icon_width,
+        icon_height,
+      )
+
+  def _build_slider_image_button(self, parent, icon, command):
+    """Return an image button that keeps a reference to icon."""
+
+    slider_button = tkinter.Button(parent, image=icon, command=command)
+    slider_button.image = icon
+
+    return slider_button
+
   def _build_widgets(self):
-    """Lay out endpoint labels, step buttons, the scale, and the current-time entry."""
+    """Lay out endpoint labels, step buttons, the scale, and the current-time label."""
 
     slider_row = tkinter.Frame(self)
     slider_row.pack(fill=tkinter.X, padx=8, pady=(8, 0))
@@ -267,11 +186,19 @@ class TimeSliderPanel(tkinter.Frame):
     self._earliest_label = tkinter.Label(slider_row, text=earliest_label_text)
     self._earliest_label.pack(side=tkinter.LEFT)
 
-    self._previous_point_button = tkinter.Button(
+    self._create_slider_button_icons(slider_row)
+
+    self._rewind_play_button = self._build_slider_image_button(
       slider_row,
-      text=_PREVIOUS_POINT_BUTTON_TEXT,
-      width=2,
-      command=self._handle_previous_point_step,
+      self._rewind_play_icon,
+      self._handle_rewind_play_click,
+    )
+    self._rewind_play_button.pack(side=tkinter.LEFT, padx=(8, 0))
+
+    self._previous_point_button = self._build_slider_image_button(
+      slider_row,
+      self._previous_point_icon,
+      self._handle_previous_point_step,
     )
     self._previous_point_button.pack(side=tkinter.LEFT, padx=(8, 0))
 
@@ -284,23 +211,28 @@ class TimeSliderPanel(tkinter.Frame):
       command=self._handle_scale_change,
     )
     self._time_scale.pack(side=tkinter.LEFT, fill=tkinter.X, expand=True, padx=8)
+    self._time_scale.bind("<ButtonPress-1>", self._handle_scale_press)
 
-    self._next_point_button = tkinter.Button(
+    self._next_point_button = self._build_slider_image_button(
       slider_row,
-      text=_NEXT_POINT_BUTTON_TEXT,
-      width=2,
-      command=self._handle_next_point_step,
+      self._next_point_icon,
+      self._handle_next_point_step,
     )
     self._next_point_button.pack(side=tkinter.LEFT)
+
+    self._fast_forward_play_button = self._build_slider_image_button(
+      slider_row,
+      self._fast_forward_play_icon,
+      self._handle_fast_forward_play_click,
+    )
+    self._fast_forward_play_button.pack(side=tkinter.LEFT, padx=(8, 0))
 
     latest_label_text = format_slider_endpoint_timestamp(self._latest_timestamp)
     self._latest_label = tkinter.Label(slider_row, text=latest_label_text)
     self._latest_label.pack(side=tkinter.LEFT, padx=(8, 0))
 
-    self._current_time_entry = tkinter.Entry(self, width=_CURRENT_TIME_ENTRY_WIDTH, justify=tkinter.CENTER)
-    self._current_time_entry.pack(pady=(4, 8))
-    self._current_time_entry.bind("<Return>", self._handle_current_time_entry_commit)
-    self._current_time_entry.bind("<FocusOut>", self._handle_current_time_entry_commit)
+    self._current_time_label = tkinter.Label(self, text="")
+    self._current_time_label.pack(pady=(4, 8))
 
   def _build_selected_timestamp(self, selected_seconds):
     """Convert slider epoch seconds back into a datetime with track timezone."""
@@ -310,27 +242,8 @@ class TimeSliderPanel(tkinter.Frame):
 
     return datetime.datetime.fromtimestamp(selected_seconds)
 
-  def _set_current_time_entry_text(self, entry_text):
-    """Replace the centered entry text without leaving a partial edit behind."""
-
-    self._current_time_entry.delete(0, tkinter.END)
-    self._current_time_entry.insert(0, entry_text)
-
-  def _refresh_current_time_entry_from_scale(self):
-    """Restore the entry from the current slider value after a failed edit."""
-
-    selected_seconds = float(self._time_scale.get())
-    selected_timestamp = self._build_selected_timestamp(selected_seconds)
-    current_entry_text = format_current_slider_position_label(
-      selected_timestamp,
-      self._current_point_index,
-      len(self._timed_gpx_points),
-    )
-
-    self._set_current_time_entry_text(current_entry_text)
-
-  def _apply_selected_seconds(self, selected_seconds):
-    """Clamp, move the slider, refresh the entry, and notify the map callback."""
+  def _apply_selected_seconds(self, selected_seconds, selected_point_index=None):
+    """Clamp, move the slider, refresh the label, and notify the map callback."""
 
     if self._applying_selected_seconds:
       return
@@ -346,37 +259,137 @@ class TimeSliderPanel(tkinter.Frame):
 
     self._time_scale.set(clamped_seconds)
     selected_timestamp = self._build_selected_timestamp(clamped_seconds)
-    point_index = \
-      gis_graphical_editor.track_analysis.find_timed_gpx_point_index_nearest_timestamp(
-        self._timed_gpx_points,
-        selected_timestamp,
-      )
+
+    if selected_point_index is not None:
+      point_index = selected_point_index
+    else:
+      point_index = \
+        gis_graphical_editor.track_analysis.find_timed_gpx_point_index_nearest_timestamp(
+          self._timed_gpx_points,
+          selected_timestamp,
+        )
 
     if point_index is None:
       point_index = 0
 
     self._current_point_index = point_index
-    current_entry_text = format_current_slider_position_label(
+    current_label_text = format_current_slider_position_label(
       selected_timestamp,
       point_index,
       len(self._timed_gpx_points),
     )
 
-    self._set_current_time_entry_text(current_entry_text)
+    self._current_time_label.config(text=current_label_text)
     self._update_step_button_states()
     self._on_timestamp_changed(selected_timestamp)
     self._applying_selected_seconds = False
 
-  def _handle_previous_point_step(self):
-    """Move the slider to the previous timed GPX point."""
+  def destroy(self):
+    """Cancel any active play stepping before tearing down the panel widgets."""
+
+    self._stop_play_stepping()
+
+    super().destroy()
+
+  def _stop_play_stepping(self):
+    """Cancel scheduled play ticks and clear the active play direction."""
+
+    if self._play_after_job is not None:
+      self.after_cancel(self._play_after_job)
+      self._play_after_job = None
+
+    self._play_direction = None
+
+  def _handle_rewind_play_click(self):
+    """Step backward on an interval until the first point, or stop if already playing."""
+
+    if self._play_direction == "backward":
+      self._stop_play_stepping()
+
+      return
+
+    self._stop_play_stepping()
+
+    if self._current_point_index <= 0:
+      return
+
+    self._play_direction = "backward"
+    self._handle_play_step_tick()
+
+  def _handle_fast_forward_play_click(self):
+    """Step forward on an interval until the last point, or stop if already playing."""
+
+    if self._play_direction == "forward":
+      self._stop_play_stepping()
+
+      return
+
+    self._stop_play_stepping()
+
+    last_point_index = len(self._timed_gpx_points) - 1
+
+    if self._current_point_index >= last_point_index:
+      return
+
+    self._play_direction = "forward"
+    self._handle_play_step_tick()
+
+  def _schedule_play_step(self):
+    """Queue the next automatic point step while play mode remains active."""
+
+    if self._play_direction is None:
+      return
+
+    self._play_after_job = self.after(
+      _PLAY_STEP_INTERVAL_MILLISECONDS,
+      self._handle_play_step_tick,
+    )
+
+  def _handle_play_step_tick(self):
+    """Advance one timed point in the active play direction, then reschedule or stop."""
+
+    self._play_after_job = None
+
+    if self._play_direction == "backward":
+      if self._current_point_index <= 0:
+        self._stop_play_stepping()
+
+        return
+
+      self._step_to_previous_point()
+
+      if self._current_point_index <= 0:
+        self._stop_play_stepping()
+
+        return
+
+    elif self._play_direction == "forward":
+      last_point_index = len(self._timed_gpx_points) - 1
+
+      if self._current_point_index >= last_point_index:
+        self._stop_play_stepping()
+
+        return
+
+      self._step_to_next_point()
+
+      if self._current_point_index >= last_point_index:
+        self._stop_play_stepping()
+
+        return
+
+    self._schedule_play_step()
+
+  def _step_to_previous_point(self):
+    """Move the slider to the previous timed GPX point without altering play state."""
 
     if self._current_point_index <= 0:
       return
 
     self._select_point_index(self._current_point_index - 1)
 
-  def _handle_next_point_step(self):
-    """Move the slider to the next timed GPX point."""
+  def _step_to_next_point(self):
+    """Move the slider to the next timed GPX point without altering play state."""
 
     last_point_index = len(self._timed_gpx_points) - 1
 
@@ -385,50 +398,79 @@ class TimeSliderPanel(tkinter.Frame):
 
     self._select_point_index(self._current_point_index + 1)
 
+  def _handle_previous_point_step(self):
+    """Move the slider to the previous timed GPX point."""
+
+    self._stop_play_stepping()
+    self._step_to_previous_point()
+
+  def _handle_next_point_step(self):
+    """Move the slider to the next timed GPX point."""
+
+    self._stop_play_stepping()
+    self._step_to_next_point()
+
   def _select_point_index(self, point_index):
     """Set the slider to one timed GPX point by index."""
 
     selected_gpx_point = self._timed_gpx_points[point_index]
     selected_seconds = selected_gpx_point.timestamp.timestamp()
-    self._apply_selected_seconds(selected_seconds)
+    self._apply_selected_seconds(selected_seconds, selected_point_index=point_index)
+
+  def _handle_scale_press(self, event):
+    """Stop auto-play when the user begins dragging the slider."""
+
+    self._stop_play_stepping()
 
   def _update_step_button_states(self):
-    """Disable step buttons at the first and last timed points."""
+    """Disable step and play buttons at the first and last timed points."""
 
     last_point_index = len(self._timed_gpx_points) - 1
 
     if self._current_point_index <= 0:
       previous_button_state = tkinter.DISABLED
+      rewind_play_button_state = tkinter.DISABLED
     else:
       previous_button_state = tkinter.NORMAL
+      rewind_play_button_state = tkinter.NORMAL
 
     if self._current_point_index >= last_point_index:
       next_button_state = tkinter.DISABLED
+      fast_forward_play_button_state = tkinter.DISABLED
     else:
       next_button_state = tkinter.NORMAL
+      fast_forward_play_button_state = tkinter.NORMAL
 
     self._previous_point_button.config(state=previous_button_state)
     self._next_point_button.config(state=next_button_state)
+    self._rewind_play_button.config(state=rewind_play_button_state)
+    self._fast_forward_play_button.config(state=fast_forward_play_button_state)
 
   def _handle_scale_change(self, scale_value):
-    """Update the centered entry and notify the map of the selected timestamp."""
+    """Update the centered label and notify the map of the selected timestamp."""
 
-    self._apply_selected_seconds(float(scale_value))
-
-  def _handle_current_time_entry_commit(self, event):
-    """Apply a typed timestamp to the slider and map, or revert on parse failure."""
-
-    entered_text = self._current_time_entry.get()
-    parsed_timestamp = parse_current_slider_position_text(entered_text, self._reference_timezone)
-
-    if parsed_timestamp is None:
-      self._refresh_current_time_entry_from_scale()
-
+    if self._applying_selected_seconds:
       return
 
-    self._apply_selected_seconds(parsed_timestamp.timestamp())
+    self._apply_selected_seconds(float(scale_value))
 
   def set_selected_timestamp(self, selected_timestamp):
     """Move the slider to selected_timestamp and refresh dependent UI."""
 
+    self._stop_play_stepping()
     self._apply_selected_seconds(selected_timestamp.timestamp())
+
+  def update_timed_gpx_points(self, timed_gpx_points, earliest_timestamp, latest_timestamp):
+    """Replace timed points and slider endpoints without destroying the panel."""
+
+    self._stop_play_stepping()
+    self._timed_gpx_points = timed_gpx_points
+    self._earliest_timestamp = earliest_timestamp
+    self._latest_timestamp = latest_timestamp
+    self._reference_timezone = earliest_timestamp.tzinfo
+    self._earliest_seconds = earliest_timestamp.timestamp()
+    self._latest_seconds = latest_timestamp.timestamp()
+    self._time_scale.config(from_=self._earliest_seconds, to=self._latest_seconds)
+    self._earliest_label.config(text=format_slider_endpoint_timestamp(self._earliest_timestamp))
+    self._latest_label.config(text=format_slider_endpoint_timestamp(self._latest_timestamp))
+    self._apply_selected_seconds(self._time_scale.get())

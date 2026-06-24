@@ -769,18 +769,34 @@ class MainWindow:
       self._update_track_metadata_for_slider_timestamp(self._last_slider_timestamp)
 
   def _setup_time_slider_if_needed(self, gpx_points):
-    """Mount the time slider when timestamps span a usable range."""
-
-    self._remove_time_slider_panel()
+    """Mount or refresh the time slider when timestamps span a usable range."""
 
     timestamp_range = gis_graphical_editor.track_analysis.get_timestamp_range(gpx_points)
 
     if timestamp_range is None:
+      self._remove_time_slider_panel()
+
       return
 
     earliest_timestamp, latest_timestamp = timestamp_range
     timed_gpx_points = \
       gis_graphical_editor.track_analysis.collect_timed_gpx_points(gpx_points)
+
+    if self._time_slider_panel is not None:
+      self._time_slider_panel.update_timed_gpx_points(
+        timed_gpx_points,
+        earliest_timestamp,
+        latest_timestamp,
+      )
+      self._setup_track_metadata_panel_if_needed(gpx_points)
+
+      if self._last_slider_timestamp is not None:
+        self._time_slider_panel.set_selected_timestamp(self._last_slider_timestamp)
+      else:
+        self._update_segment_split_button_state(None)
+
+      return
+
     self._time_slider_panel = gis_graphical_editor.time_slider_panel.TimeSliderPanel(
       self._map_column_frame,
       earliest_timestamp,
