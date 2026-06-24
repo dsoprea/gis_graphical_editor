@@ -1,6 +1,8 @@
 # GIS Graphical Editor
 
-Desktop application for viewing GPX tracks on an interactive OpenStreetMap map. Load a GPX file, inspect the path, and optionally overlay recorded points or interval markers along time and distance.
+Desktop application for viewing GPX tracks on an interactive OpenStreetMap map. Load a GPX file, inspect the path, split or delete segments along the time slider, and optionally overlay recorded points or interval markers along time and distance.
+
+![GIS Graphical Editor showing the Key West AutoLog GPX track on OpenStreetMap with the time slider, metadata panel, and segment list](asset/documentation/image/track-overview.png)
 
 ## Requirements
 
@@ -41,11 +43,19 @@ Show every recorded point as a green dot:
 gge --filepath /path/to/track.gpx --points
 ```
 
+![Green dots at every recorded GPX point along the Key West track](asset/documentation/image/track-recorded-points.png)
+
 Place orange markers every 2 hours and red markers every 10 miles:
 
 ```bash
 gge --filepath /path/to/track.gpx --mark-hours 2 --mark-distance 10
 ```
+
+![Orange hour markers and red distance markers with labels along the Key West track](asset/documentation/image/track-interval-markers.png)
+
+All three overlay types together:
+
+![Green point dots with orange hour markers and red distance markers on the same track](asset/documentation/image/track-combined-overlays.png)
 
 ## Command-line options
 
@@ -61,15 +71,28 @@ gge --filepath /path/to/track.gpx --mark-hours 2 --mark-distance 10
 
 ## Using the map
 
+![Time slider scrubbed to a mid-track point with the red position marker on the map](asset/documentation/image/track-time-slider-midpoint.png)
+
 - **Pan and zoom** using the map widget controls (provided by [tkintermapview](https://github.com/TomSchimansky/TkinterMapView)).
 - **Double-click** the map to zoom in centered on the pointer.
 - On load, the view **fits the track bounding box** automatically.
+- **Time slider** (when the GPX has timestamps): scrub or use **Reverse play** / **Forward play** and step buttons to animate along the path; a red marker shows the current position.
+
+## Track segments
+
+![Two segments after splitting the track at the slider position, with Split, Delete, and Undo controls](asset/documentation/image/track-segments-after-split.png)
+
+- **Segment checklist** in the right sidebar toggles which segments are drawn on the map.
+- **Split** divides the current segment at the slider’s nearest point; **Delete** removes the highlighted segment after confirmation.
+- **Undo** restores the segment structure from before the last split or delete.
+- **Save As** (Ctrl+Shift+S) exports all in-memory segments, including edits.
 
 ## File menu
 
 | Action | Shortcut | Description |
 |--------|----------|-------------|
 | Load | Ctrl+O | Open a GPX file via file dialog |
+| Save As | Ctrl+Shift+S | Export the current track (including segment edits) to a GPX file |
 | Close | Ctrl+W | Remove the current map and track (disabled until a file is loaded) |
 | Exit | Ctrl+Q | Quit the application |
 
