@@ -65,6 +65,7 @@ class MainWindow:
     self._track_metadata_panel = None
     self._last_slider_timestamp = None
     self._right_sidebar_panel_width = None
+    self._content_paned_sash_sync_scheduled = False
     self._slider_position_marker = None
     self._loaded_gpx_points = None
     self._loaded_gpx_segments = None
@@ -330,7 +331,8 @@ class MainWindow:
     if self._right_sidebar_panel_width is None:
       return
 
-    self._position_content_paned_sash(self._right_sidebar_panel_width)
+    # sash_place during <Configure> prevents the map pane from shrinking; defer until idle.
+    self._schedule_content_paned_sash(self._right_sidebar_panel_width)
 
   def _ensure_map_widget(self):
     """Create the OSM map widget on first use and bind map interactions."""
@@ -841,12 +843,18 @@ class MainWindow:
   def _schedule_content_paned_sash(self, panel_width):
     """Defer sash placement until Tk has laid out the paned window."""
 
+    if self._content_paned_sash_sync_scheduled:
+      return
+
+    self._content_paned_sash_sync_scheduled = True
     self._root.after_idle(
       lambda: self._position_content_paned_sash(panel_width),
     )
 
   def _position_content_paned_sash(self, panel_width):
     """Pin the sash so the right sidebar is exactly panel_width pixels wide."""
+
+    self._content_paned_sash_sync_scheduled = False
 
     if self._content_paned is None or self._right_sidebar_frame is None:
       return
