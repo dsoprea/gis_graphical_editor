@@ -108,6 +108,7 @@ class SegmentListPanel(tkinter.Frame):
       bg=_CURRENT_SEGMENT_BACKGROUND,
       activebackground=_CURRENT_SEGMENT_BACKGROUND,
     )
+    self._scroll_segment_index_into_view(segment_index)
 
   def find_segment_summary_for_gpx_point(self, gpx_point):
     """Return the segment summary that owns gpx_point, if any."""
@@ -281,6 +282,37 @@ class SegmentListPanel(tkinter.Frame):
     """Notify the main window when the user requests a segment edit undo."""
 
     self._on_undo_requested()
+
+  def _scroll_segment_index_into_view(self, segment_index):
+    """Scroll the checklist canvas so the highlighted segment row is visible."""
+
+    highlighted_checkbutton = self._segment_checkbuttons[segment_index]
+    self._segment_checkbox_frame.update_idletasks()
+    checkbutton_top = highlighted_checkbutton.winfo_y()
+    checkbutton_bottom = checkbutton_top + highlighted_checkbutton.winfo_height()
+    frame_height = self._segment_checkbox_frame.winfo_height()
+    canvas_height = self._segment_canvas.winfo_height()
+
+    if frame_height <= 0 or canvas_height <= 0:
+      return
+
+    # Compare the row against the canvas viewport using yview scroll fractions.
+    top_scroll_fraction, bottom_scroll_fraction = self._segment_canvas.yview()
+    visible_top = top_scroll_fraction * frame_height
+    visible_bottom = bottom_scroll_fraction * frame_height
+
+    if checkbutton_top >= visible_top and checkbutton_bottom <= visible_bottom:
+      return
+
+    scroll_fraction = checkbutton_top / frame_height
+
+    if scroll_fraction < 0:
+      scroll_fraction = 0
+
+    if scroll_fraction > 1:
+      scroll_fraction = 1
+
+    self._segment_canvas.yview_moveto(scroll_fraction)
 
 
 def compute_panel_width(segment_labels):

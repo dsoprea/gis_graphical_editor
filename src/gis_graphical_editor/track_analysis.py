@@ -823,6 +823,22 @@ def find_segment_summary_for_gpx_point(segment_summaries, gpx_point):
   return None
 
 
+def find_track_segment_summary_index_for_gpx_point(segment_summaries, gpx_point):
+  """Return the index of the summary that owns gpx_point by object identity."""
+
+  segment_summary = find_segment_summary_for_gpx_point(segment_summaries, gpx_point)
+
+  if segment_summary is None:
+    return None
+
+  # Map the matched summary back to its checklist row index.
+  for segment_index, candidate_summary in enumerate(segment_summaries):
+    if candidate_summary is segment_summary:
+      return segment_index
+
+  return None
+
+
 def find_gpx_point_index_in_segment_points(segment_points, gpx_point):
   """Return the index of gpx_point inside segment_points by object identity."""
 

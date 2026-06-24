@@ -483,6 +483,7 @@ class MainWindow:
 
     if self._last_slider_timestamp is not None:
       self._update_segment_split_button_state(self._last_slider_timestamp)
+      self._update_segment_list_slider_highlight(self._last_slider_timestamp)
 
   def _handle_segment_undo_requested(self):
     """Restore the most recent segment structure snapshot from the undo stack."""
@@ -977,11 +978,17 @@ class MainWindow:
     if self._segment_list_panel is None:
       return
 
+    visible_gpx_points = self._get_visible_gpx_points()
+    nearest_gpx_point = \
+      gis_graphical_editor.track_analysis.find_gpx_point_nearest_timestamp(
+        visible_gpx_points,
+        selected_timestamp,
+      )
     segment_summaries = self._segment_list_panel.get_segment_summaries()
     segment_index = \
-      gis_graphical_editor.track_analysis.find_track_segment_summary_index_at_timestamp(
+      gis_graphical_editor.track_analysis.find_track_segment_summary_index_for_gpx_point(
         segment_summaries,
-        selected_timestamp,
+        nearest_gpx_point,
       )
     self._segment_list_panel.set_highlighted_segment_index(segment_index)
 

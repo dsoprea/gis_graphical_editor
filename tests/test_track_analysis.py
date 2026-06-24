@@ -573,6 +573,94 @@ def test_find_segment_summary_for_gpx_point_matches_by_identity():
   assert segment_summary is second_segment
 
 
+def test_find_track_segment_summary_index_for_gpx_point_returns_middle_segment():
+  first_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    40.0,
+    -105.0,
+    datetime.datetime(2024, 6, 1, 8, 0, 0),
+  )
+  second_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    40.5,
+    -105.5,
+    datetime.datetime(2024, 6, 1, 9, 0, 0),
+  )
+  third_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    41.0,
+    -106.0,
+    datetime.datetime(2024, 6, 1, 10, 0, 0),
+  )
+  first_segment = gis_graphical_editor.track_analysis.TrackSegmentSummary(
+    [first_point],
+    first_point.timestamp,
+    first_point.timestamp,
+  )
+  second_segment = gis_graphical_editor.track_analysis.TrackSegmentSummary(
+    [second_point],
+    second_point.timestamp,
+    second_point.timestamp,
+  )
+  third_segment = gis_graphical_editor.track_analysis.TrackSegmentSummary(
+    [third_point],
+    third_point.timestamp,
+    third_point.timestamp,
+  )
+  segment_summaries = [first_segment, second_segment, third_segment]
+
+  segment_index = \
+    gis_graphical_editor.track_analysis.find_track_segment_summary_index_for_gpx_point(
+      segment_summaries,
+      second_point,
+    )
+
+  assert segment_index == 1
+
+
+def test_find_track_segment_summary_index_for_gpx_point_prefers_tail_at_shared_timestamp():
+  shared_timestamp = datetime.datetime(2024, 6, 1, 10, 0, 0)
+  head_last_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    40.0,
+    -105.0,
+    shared_timestamp,
+  )
+  tail_first_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    40.1,
+    -105.1,
+    shared_timestamp,
+  )
+  tail_second_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    40.2,
+    -105.2,
+    datetime.datetime(2024, 6, 1, 11, 0, 0),
+  )
+  head_segment = gis_graphical_editor.track_analysis.TrackSegmentSummary(
+    [head_last_point],
+    shared_timestamp,
+    shared_timestamp,
+  )
+  tail_segment = gis_graphical_editor.track_analysis.TrackSegmentSummary(
+    [tail_first_point, tail_second_point],
+    shared_timestamp,
+    tail_second_point.timestamp,
+  )
+  segment_summaries = [head_segment, tail_segment]
+
+  segment_index = \
+    gis_graphical_editor.track_analysis.find_track_segment_summary_index_for_gpx_point(
+      segment_summaries,
+      tail_first_point,
+    )
+
+  assert segment_index == 1
+
+  timestamp_index = \
+    gis_graphical_editor.track_analysis.find_track_segment_summary_index_at_timestamp(
+      segment_summaries,
+      shared_timestamp,
+    )
+
+  assert timestamp_index == 0
+
+
 def test_find_track_segment_summary_index_at_timestamp_returns_middle_segment():
   first_segment = gis_graphical_editor.track_analysis.TrackSegmentSummary(
     [],
