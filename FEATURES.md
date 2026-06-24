@@ -25,6 +25,15 @@ Complete catalog of GIS Graphical Editor (`gge`) capabilities.
   - Warning dialog when no track points are found.
   - Warning when `--mark-hours` is set but the loaded GPX has no timestamps (hour markers are skipped; the path still draws).
 
+## GPX export
+
+- **Save As** via **File → Save As** (Ctrl+Shift+S) writes the in-memory track to a user-chosen `.gpx` path.
+- Exports **all** segments in `_loaded_gpx_segments`, preserving segment boundaries after split/delete edits.
+- Segment checklist checkboxes affect map display only; unchecked segments remain in the exported file.
+- Standard GPX point fields (elevation, speed, course, and similar metadata) round-trip through save and reload.
+- Error dialog when the file cannot be written.
+- Menu item disabled until a track with at least one point is loaded.
+
 ## Map display
 
 - **Base map**: OpenStreetMap tiles through tkintermapview.
@@ -86,10 +95,12 @@ Complete catalog of GIS Graphical Editor (`gge`) capabilities.
 | Menu | Item | Shortcut | When available |
 |------|------|----------|----------------|
 | File | Load | Ctrl+O | Always |
+| File | Save As | Ctrl+Shift+S | After a track with points is loaded |
 | File | Close | Ctrl+W | After a track is loaded |
 | File | Exit | Ctrl+Q | Always |
 
 - Load opens a file dialog filtered to `*.gpx` with an "All files" option.
+- Save As opens a save dialog filtered to `*.gpx` and writes the current in-memory segments.
 - Exit calls `root.quit()` to end the main loop.
 
 ## Track analysis (library)
@@ -108,6 +119,7 @@ Reusable logic in `track_analysis.py`:
 
 - `load_gpx_points_from_gpx(path)` — ordered `GpxPointRecord` list.
 - `load_track_points_from_gpx(path)` — ordered `(latitude, longitude)` tuples.
+- `write_track_point_segments_to_gpx(path, segment_point_lists)` — write segment lists as one GPX track.
 
 ## Configuration object
 
@@ -132,14 +144,13 @@ Reusable logic in `track_analysis.py`:
 
 Pytest coverage includes:
 
-- GPX track segment loading (`test_gpx_utility.py`)
+- GPX track segment loading and export round-trips (`test_gpx_utility.py`)
 - Hour and distance interval marker labels (`test_track_analysis.py`)
 - Track display options (`test_track_display_options.py`)
 - CLI validation for non-positive `--mark-hours` (`tests/entrypoint/test_gge.py`)
 
 ## Out of scope (current version)
 
-- Editing or saving GPX files.
 - KMZ/KML import (only `.gpx` is supported).
 - Multiple simultaneous tracks with separate styling.
 - GUI controls for display options (options are CLI-only at launch).

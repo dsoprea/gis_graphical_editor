@@ -24,7 +24,8 @@ _GPX_FILE_TYPE_LABEL = "GPX files"
 _GPX_FILE_TYPE_PATTERN = "*.gpx"
 _ALL_FILE_TYPE_LABEL = "All files"
 _ALL_FILE_TYPE_PATTERN = "*.*"
-_FILE_MENU_CLOSE_INDEX = 1
+_FILE_MENU_SAVE_AS_INDEX = 1
+_FILE_MENU_CLOSE_INDEX = 2
 _PATH_COLOR = "#0066CC"
 _PATH_WIDTH = 9
 _ORANGE_MARKER_TEXT = "#CC5500"
@@ -86,7 +87,7 @@ class MainWindow:
     self.prompt_and_load_gpx_file()
 
   def _build_menu_bar(self):
-    """Create the File menu with Load, Close, and Exit actions."""
+    """Create the File menu with Load, Save As, Close, and Exit actions."""
 
     menu_bar = tkinter.Menu(self._root)
     self._root.config(menu=menu_bar)
@@ -99,6 +100,12 @@ class MainWindow:
       command=self.prompt_and_load_gpx_file,
       accelerator="Ctrl+O",
       underline=0,
+    )
+    self._file_menu.add_command(
+      label="Save As",
+      command=self.prompt_and_save_gpx_file_as,
+      accelerator="Ctrl+Shift+S",
+      underline=5,
     )
     self._file_menu.add_command(
       label="Close",
@@ -119,28 +126,55 @@ class MainWindow:
 
     self._root.bind("<Control-o>", self._handle_load_gpx_shortcut)
     self._root.bind("<Control-O>", self._handle_load_gpx_shortcut)
+    self._root.bind("<Control-Shift-S>", self._handle_save_as_shortcut)
+    self._root.bind("<Control-Shift-s>", self._handle_save_as_shortcut)
     self._root.bind("<Control-w>", self._handle_close_gpx_shortcut)
     self._root.bind("<Control-W>", self._handle_close_gpx_shortcut)
     self._root.bind("<Control-q>", self._handle_exit_shortcut)
     self._root.bind("<Control-Q>", self._handle_exit_shortcut)
 
   def _update_file_menu_state(self):
-    """Enable Close only while a map with loaded track data is visible."""
+    """Enable Save As and Close only while a map with loaded track data is visible."""
 
     if self._file_menu is None:
       return
 
     if self._map_widget is None:
+      save_as_state = tkinter.DISABLED
       close_state = tkinter.DISABLED
+    elif self._has_saveable_gpx_segments():
+      save_as_state = tkinter.NORMAL
+      close_state = tkinter.NORMAL
     else:
+      save_as_state = tkinter.DISABLED
       close_state = tkinter.NORMAL
 
+    self._file_menu.entryconfig(_FILE_MENU_SAVE_AS_INDEX, state=save_as_state)
     self._file_menu.entryconfig(_FILE_MENU_CLOSE_INDEX, state=close_state)
+
+  def _has_saveable_gpx_segments(self):
+    """Return True when _loaded_gpx_segments contains at least one point."""
+
+    if self._loaded_gpx_segments is None:
+      return False
+
+    for segment_points in self._loaded_gpx_segments:
+      if segment_points:
+        return True
+
+    return False
 
   def _handle_load_gpx_shortcut(self, event):
     """Open the GPX file picker from the Ctrl+O shortcut."""
 
     self.prompt_and_load_gpx_file()
+
+    return "break"
+
+  def _handle_save_as_shortcut(self, event):
+    """Open the Save As dialog from the Ctrl+Shift+S shortcut."""
+
+    self.prompt_and_save_gpx_file_as()
 
     return "break"
 
@@ -174,6 +208,43 @@ class MainWindow:
       return
 
     self.load_gpx_file(gpx_path)
+
+  def prompt_and_save_gpx_file_as(self):
+    """Ask the user for a destination path and write the loaded GPX segments there."""
+
+    if not self._has_saveable_gpx_segments():
+      return
+
+    gpx_path = tkinter.filedialog.asksaveasfilename(
+      parent=self._root,
+      title="Save GPX file as",
+      defaultextension=".gpx",
+      filetypes=[
+        (_GPX_FILE_TYPE_LABEL, _GPX_FILE_TYPE_PATTERN),
+        (_ALL_FILE_TYPE_LABEL, _ALL_FILE_TYPE_PATTERN),
+      ],
+    )
+
+    if not gpx_path:
+      return
+
+    self.save_gpx_file_as(gpx_path)
+
+  def save_gpx_file_as(self, gpx_path):
+    """Write _loaded_gpx_segments to gpx_path, showing an error dialog on failure."""
+
+    if not self._has_saveable_gpx_segments():
+      return
+
+    try:
+      gis_graphical_editor.gpx_utility.write_track_point_segments_to_gpx(
+        gpx_path,
+        self._loaded_gpx_segments,
+      )
+    except Exception as error:
+      message = "Could not write GPX file:\n{error}".format(error=error)
+      _LOGGER.exception(message)
+      tkinter.messagebox.showerror("Save GPX", message, parent=self._root)
 
   def load_gpx_file(self, gpx_path):
     """Parse gpx_path and render the track with any enabled CLI overlays."""

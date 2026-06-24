@@ -1,9 +1,23 @@
-"""Parse GPX files into point records with coordinates and timestamps."""
+"""Load and write GPX files as point records with coordinates and timestamps."""
 
 import datetime
 import zoneinfo
 
 import gpxpy
+import gpxpy.gpx
+
+_INTEGER_GPX_METADATA_FIELD_NAMES = frozenset({"satellites", "dgps_id"})
+_STRING_GPX_METADATA_FIELD_NAMES = frozenset({
+  "name",
+  "comment",
+  "description",
+  "source",
+  "symbol",
+  "type",
+  "type_of_gpx_fix",
+  "link",
+  "link_text",
+})
 
 
 class GpxPointRecord:
@@ -114,6 +128,41 @@ def load_track_points_from_gpx(gpx_path):
     track_points.append((gpx_point.latitude, gpx_point.longitude))
 
   return track_points
+
+
+def write_track_point_segments_to_gpx(gpx_path, segment_point_lists):
+  """Write segment_point_lists to gpx_path as one GPX track with one segment per list."""
+
+  gpx_document = gpxpy.gpx.GPX()
+  track = gpxpy.gpx.GPXTrack()
+
+  # Emit one GPX track segment per non-empty in-memory segment list.
+  for segment_points in segment_point_lists:
+    if not segment_points:
+      continue
+
+    segment = gpxpy.gpx.GPXTrackSegment()
+
+    for gpx_point in segment_points:
+      track_point = gpxpy.gpx.GPXTrackPoint(
+        latitude=gpx_point.latitude,
+        longitude=gpx_point.longitude,
+        time=gpx_point.timestamp,
+      )
+      _apply_additional_metadata_to_gpx_track_point(
+        track_point,
+        gpx_point.additional_metadata,
+      )
+      segment.points.append(track_point)
+
+    track.segments.append(segment)
+
+  gpx_document.tracks.append(track)
+  gpx_document.version = "1.0"
+  gpx_text = gpx_document.to_xml()
+
+  with open(gpx_path, "w", encoding="utf-8") as gpx_file:
+    gpx_file.write(gpx_text)
 
 
 def convert_gpx_point_timestamps_to_timezone(gpx_points, timezone_name):
@@ -239,3 +288,48 @@ def _build_extension_metadata_key(extension_element, extension_index):
     return element_tag
 
   return "extension_{extension_index}".format(extension_index=extension_index)
+
+
+def _apply_additional_metadata_to_gpx_track_point(track_point, additional_metadata):
+  """Copy string metadata values onto a gpxpy track point when the field exists."""
+
+  metadata_keys = sorted(additional_metadata.keys())
+
+  # Restore each known standard GPX field from the metadata map.
+  for metadata_key in metadata_keys:
+    if _is_extension_derived_metadata_key(metadata_key):
+      continue
+
+    if not hasattr(track_point, metadata_key):
+      continue
+
+    metadata_value = additional_metadata[metadata_key]
+    coerced_value = _coerce_gpx_metadata_value(metadata_key, metadata_value)
+    setattr(track_point, metadata_key, coerced_value)
+
+
+def _is_extension_derived_metadata_key(metadata_key):
+  """Return True when metadata_key came from a GPX extensions XML element."""
+
+  if ":" in metadata_key:
+    return True
+
+  if metadata_key.startswith("extension_"):
+    return True
+
+  return False
+
+
+def _coerce_gpx_metadata_value(field_name, metadata_value):
+  """Return a gpxpy-typed value for one string metadata entry."""
+
+  if field_name in _STRING_GPX_METADATA_FIELD_NAMES:
+    return metadata_value
+
+  if field_name in _INTEGER_GPX_METADATA_FIELD_NAMES:
+    return int(float(metadata_value))
+
+  try:
+    return float(metadata_value)
+  except ValueError:
+    return metadata_value

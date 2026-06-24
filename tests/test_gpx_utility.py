@@ -117,3 +117,81 @@ def test_load_gpx_points_from_gpx_captures_elevation_speed_and_course(tmp_path):
   assert gpx_points[0].additional_metadata["speed"] == "11.75"
   assert gpx_points[0].additional_metadata["course"] == "263.1"
   assert "extensions" not in gpx_points[0].additional_metadata
+
+
+def test_write_track_point_segments_to_gpx_round_trips_segment_boundaries(tmp_path):
+  first_segment = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(40.0, -105.0, None),
+    gis_graphical_editor.gpx_utility.GpxPointRecord(40.1, -105.1, None),
+  ]
+  second_segment = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(41.0, -106.0, None),
+  ]
+  segment_point_lists = [first_segment, second_segment]
+  output_path = os.path.join(str(tmp_path), "written.gpx")
+
+  gis_graphical_editor.gpx_utility.write_track_point_segments_to_gpx(
+    output_path,
+    segment_point_lists,
+  )
+  reloaded_segment_point_lists = \
+    gis_graphical_editor.gpx_utility.load_track_point_segments_from_gpx(output_path)
+
+  assert len(reloaded_segment_point_lists) == 2
+  assert reloaded_segment_point_lists[0][0].latitude == 40.0
+  assert reloaded_segment_point_lists[0][1].longitude == -105.1
+  assert reloaded_segment_point_lists[1][0].latitude == 41.0
+
+
+def test_write_track_point_segments_to_gpx_round_trips_metadata(tmp_path):
+  source_path = os.path.join(str(tmp_path), "metadata.gpx")
+  gpx_text = """<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.0" creator="test" xmlns="http://www.topografix.com/GPX/1/0">
+  <trk>
+    <trkseg>
+      <trkpt lat="40.0" lon="-105.0">
+        <ele>7</ele>
+        <time>2024-06-01T08:00:00Z</time>
+        <speed>11.75</speed>
+        <course>263.1</course>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>
+"""
+  with open(source_path, "w", encoding="utf-8") as gpx_file:
+    gpx_file.write(gpx_text)
+
+  segment_point_lists = \
+    gis_graphical_editor.gpx_utility.load_track_point_segments_from_gpx(source_path)
+  output_path = os.path.join(str(tmp_path), "metadata_out.gpx")
+
+  gis_graphical_editor.gpx_utility.write_track_point_segments_to_gpx(
+    output_path,
+    segment_point_lists,
+  )
+  reloaded_gpx_points = \
+    gis_graphical_editor.gpx_utility.load_gpx_points_from_gpx(output_path)
+
+  assert len(reloaded_gpx_points) == 1
+  assert reloaded_gpx_points[0].additional_metadata["elevation"] == "7.0"
+  assert reloaded_gpx_points[0].additional_metadata["speed"] == "11.75"
+  assert reloaded_gpx_points[0].additional_metadata["course"] == "263.1"
+
+
+def test_write_track_point_segments_to_gpx_round_trips_timezone_aware_timestamps(tmp_path):
+  utc_timestamp = datetime.datetime(2024, 6, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)
+  segment_point_lists = [[
+    gis_graphical_editor.gpx_utility.GpxPointRecord(40.0, -105.0, utc_timestamp),
+  ]]
+  output_path = os.path.join(str(tmp_path), "timed.gpx")
+
+  gis_graphical_editor.gpx_utility.write_track_point_segments_to_gpx(
+    output_path,
+    segment_point_lists,
+  )
+  reloaded_gpx_points = \
+    gis_graphical_editor.gpx_utility.load_gpx_points_from_gpx(output_path)
+
+  assert len(reloaded_gpx_points) == 1
+  assert reloaded_gpx_points[0].timestamp == utc_timestamp
