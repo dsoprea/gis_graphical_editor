@@ -821,7 +821,7 @@ class MainWindow:
     self._apply_right_sidebar_width(panel_width)
 
   def _setup_segment_list_panel(self):
-    """Mount the right-side segment checklist when the loaded GPX has segments."""
+    """Mount the right-side segment checklist while a GPX file remains loaded."""
 
     self._remove_right_sidebar()
 
@@ -834,9 +834,6 @@ class MainWindow:
         self._track_display_options.exclude_idle_segments,
         self._track_display_options.use_metric_units,
       )
-
-    if not segment_summaries:
-      return
 
     segment_labels = []
 

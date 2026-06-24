@@ -1103,6 +1103,35 @@ def test_remove_gpx_segment_from_segment_point_lists_removes_last_segment():
   assert updated_segment_point_lists[0] is first_segment
 
 
+def test_remove_gpx_segment_from_segment_point_lists_removes_only_segment():
+  only_segment = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(
+      40.0,
+      -105.0,
+      datetime.datetime(2024, 6, 1, 8, 0, 0),
+    ),
+  ]
+  segment_point_lists = [only_segment]
+
+  updated_segment_point_lists = \
+    gis_graphical_editor.track_analysis.remove_gpx_segment_from_segment_point_lists(
+      segment_point_lists,
+      only_segment,
+    )
+
+  assert updated_segment_point_lists == []
+
+
+def test_build_track_segment_summaries_returns_empty_list_for_empty_input():
+  segment_summaries = gis_graphical_editor.track_analysis.build_track_segment_summaries(
+    [],
+    exclude_idle_segments=False,
+    use_metric_units=False,
+  )
+
+  assert segment_summaries == []
+
+
 def test_remove_gpx_segment_from_segment_point_lists_returns_none_when_not_found():
   segment_points = [
     gis_graphical_editor.gpx_utility.GpxPointRecord(
