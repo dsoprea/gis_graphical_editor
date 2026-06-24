@@ -9,6 +9,7 @@ import gis_graphical_editor.track_analysis
 _CHECKBUTTON_EXTRA_WIDTH = 30
 _PANEL_HORIZONTAL_PADDING = 24
 _MIN_PANEL_WIDTH = 400
+_PANEL_WIDTH_FRACTION = 0.9
 _INNER_LIST_BACKGROUND = "#f5f5f5"
 _CURRENT_SEGMENT_BACKGROUND = "#c8c8c8"
 
@@ -21,6 +22,7 @@ class SegmentListPanel(tkinter.Frame):
     master,
     segment_summaries,
     on_selection_changed,
+    panel_width,
     use_metric_units=False,
     exclude_idle_segments=False,
   ):
@@ -37,14 +39,13 @@ class SegmentListPanel(tkinter.Frame):
         )
       segment_labels.append(segment_label)
 
-    panel_width = compute_panel_width(segment_labels)
-
     super().__init__(master, width=panel_width)
 
     self._segment_summaries = segment_summaries
     self._on_selection_changed = on_selection_changed
     self._selection_variables = []
     self._segment_checkbuttons = []
+    self._panel_width = panel_width
     self.pack_propagate(False)
     self._build_widgets(segment_labels)
     self._populate_segment_checkbuttons(segment_labels)
@@ -69,6 +70,16 @@ class SegmentListPanel(tkinter.Frame):
     """Return the segment summaries backing this checklist."""
 
     return self._segment_summaries
+
+  def set_panel_width(self, panel_width):
+    """Resize the checklist and rewrap segment labels to panel_width."""
+
+    self._panel_width = panel_width
+    self.config(width=panel_width)
+    label_wraplength = _compute_segment_label_wraplength(panel_width)
+
+    for segment_checkbutton in self._segment_checkbuttons:
+      segment_checkbutton.config(wraplength=label_wraplength)
 
   def set_highlighted_segment_index(self, segment_index):
     """Paint one row darker gray when the slider is on that segment, else light gray."""
@@ -140,6 +151,8 @@ class SegmentListPanel(tkinter.Frame):
   def _populate_segment_checkbuttons(self, segment_labels):
     """Create one checked checkbutton per segment label."""
 
+    label_wraplength = _compute_segment_label_wraplength(self._panel_width)
+
     for segment_label in segment_labels:
       selection_variable = tkinter.BooleanVar(value=True)
       self._selection_variables.append(selection_variable)
@@ -149,6 +162,7 @@ class SegmentListPanel(tkinter.Frame):
         variable=selection_variable,
         anchor=tkinter.W,
         justify=tkinter.LEFT,
+        wraplength=label_wraplength,
         bg=_INNER_LIST_BACKGROUND,
         activebackground=_INNER_LIST_BACKGROUND,
         command=self._handle_selection_changed,
@@ -182,4 +196,17 @@ def compute_panel_width(segment_labels):
   if panel_width < _MIN_PANEL_WIDTH:
     panel_width = _MIN_PANEL_WIDTH
 
+  panel_width = int(panel_width * _PANEL_WIDTH_FRACTION)
+
   return panel_width
+
+
+def _compute_segment_label_wraplength(panel_width):
+  """Return a Checkbutton wraplength that fits panel_width."""
+
+  label_wraplength = panel_width - _CHECKBUTTON_EXTRA_WIDTH - 16
+
+  if label_wraplength < 80:
+    label_wraplength = 80
+
+  return label_wraplength

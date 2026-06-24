@@ -48,6 +48,9 @@ class MainWindow:
     self._track_display_options = track_display_options
     self._main_frame = tkinter.Frame(self._root)
     self._main_frame.pack(fill=tkinter.BOTH, expand=True)
+    self._main_frame.grid_rowconfigure(0, weight=1)
+    self._main_frame.grid_columnconfigure(0, weight=1)
+    self._content_paned = None
     self._map_column_frame = None
     self._map_widget = None
     self._file_menu = None
@@ -235,14 +238,37 @@ class MainWindow:
     self._loaded_gpx_segments = gpx_segments
     self._display_gpx_points(gpx_points)
 
+  def _ensure_content_paned(self):
+    """Create the horizontal split between the map column and right sidebar."""
+
+    if self._content_paned is not None:
+      return
+
+    self._content_paned = tkinter.PanedWindow(
+      self._main_frame,
+      orient=tkinter.HORIZONTAL,
+      sashwidth=4,
+    )
+    self._content_paned.grid(row=0, column=0, sticky="nsew")
+    self._content_paned.bind("<Configure>", self._handle_content_paned_configure)
+
+  def _handle_content_paned_configure(self, event):
+    """Keep the right sidebar at the computed width when the window is resized."""
+
+    if self._right_sidebar_panel_width is None:
+      return
+
+    self._position_content_paned_sash(self._right_sidebar_panel_width)
+
   def _ensure_map_widget(self):
     """Create the OSM map widget on first use and bind map interactions."""
 
     if self._map_widget is not None:
       return
 
-    self._map_column_frame = tkinter.Frame(self._main_frame)
-    self._map_column_frame.pack(side=tkinter.LEFT, fill=tkinter.BOTH, expand=True)
+    self._ensure_content_paned()
+    self._map_column_frame = tkinter.Frame(self._content_paned)
+    self._content_paned.add(self._map_column_frame, stretch="always")
 
     self._map_widget = tkintermapview.TkinterMapView(self._map_column_frame, corner_radius=0)
     self._map_widget.pack(fill=tkinter.BOTH, expand=True)
@@ -296,7 +322,9 @@ class MainWindow:
     if self._right_sidebar_frame is None:
       return
 
-    self._right_sidebar_frame.pack_forget()
+    if self._content_paned is not None:
+      self._content_paned.forget(self._right_sidebar_frame)
+
     self._right_sidebar_frame.destroy()
     self._right_sidebar_frame = None
 
@@ -329,9 +357,16 @@ class MainWindow:
       self._map_widget = None
 
     if self._map_column_frame is not None:
-      self._map_column_frame.pack_forget()
+      if self._content_paned is not None:
+        self._content_paned.forget(self._map_column_frame)
+
       self._map_column_frame.destroy()
       self._map_column_frame = None
+
+    if self._content_paned is not None:
+      self._content_paned.grid_forget()
+      self._content_paned.destroy()
+      self._content_paned = None
 
     self._green_point_icon = None
     self._orange_interval_icon = None
@@ -444,23 +479,124 @@ class MainWindow:
       )
       self._display_distance_interval_markers(distance_interval_markers)
 
-    # Fit the map to the visible track extent before optional slider setup.
+    # Fit the map after the slider and sidebar layout have their final dimensions.
+    self._setup_time_slider_if_needed(visible_gpx_points)
+    self._schedule_fit_map_to_visible_track()
+
+  def _schedule_fit_map_to_visible_track(self):
+    """Defer map fitting until the map widget has its laid-out pixel dimensions."""
+
+    self._root.after_idle(self._try_fit_map_to_visible_track)
+
+  def _try_fit_map_to_visible_track(self):
+    """Fit the map to the visible track once the map canvas has a real size."""
+
+    if self._map_widget is None:
+      return
+
+    visible_gpx_points = self._get_visible_gpx_points()
+
+    if not visible_gpx_points:
+      return
+
+    self._map_widget.update_idletasks()
+    map_width = self._map_widget.winfo_width()
+    map_height = self._map_widget.winfo_height()
+
+    if map_width <= 1 or map_height <= 1:
+      self._root.after(50, self._try_fit_map_to_visible_track)
+
+      return
+
+    # tkintermapview fits using its internal width/height, which update on <Configure>.
+    if self._map_widget.width != map_width or self._map_widget.height != map_height:
+      self._root.after(50, self._try_fit_map_to_visible_track)
+
+      return
+
+    track_points = []
+
+    for gpx_point in visible_gpx_points:
+      track_points.append((gpx_point.latitude, gpx_point.longitude))
+
     latitudes = [point[0] for point in track_points]
     longitudes = [point[1] for point in track_points]
     position_top_left = (max(latitudes), min(longitudes))
     position_bottom_right = (min(latitudes), max(longitudes))
 
     self._map_widget.fit_bounding_box(position_top_left, position_bottom_right)
-    self._setup_time_slider_if_needed(visible_gpx_points)
 
-  def _ensure_right_sidebar_frame(self):
-    """Create the right sidebar container on first use."""
+  def _apply_right_sidebar_width(self, panel_width):
+    """Keep the sidebar paned pane and child panels at panel_width."""
+
+    self._right_sidebar_panel_width = panel_width
 
     if self._right_sidebar_frame is not None:
+      self._right_sidebar_frame.config(width=panel_width)
+
+    if self._content_paned is not None and self._right_sidebar_frame is not None:
+      self._content_paned.paneconfigure(self._right_sidebar_frame, minsize=panel_width)
+
+    if self._segment_list_panel is not None:
+      self._segment_list_panel.set_panel_width(panel_width)
+
+    if self._track_metadata_panel is not None:
+      self._track_metadata_panel.set_panel_width(panel_width)
+
+    self._schedule_content_paned_sash(panel_width)
+
+  def _schedule_content_paned_sash(self, panel_width):
+    """Defer sash placement until Tk has laid out the paned window."""
+
+    self._root.after_idle(
+      lambda: self._position_content_paned_sash(panel_width),
+    )
+
+  def _position_content_paned_sash(self, panel_width):
+    """Pin the sash so the right sidebar is exactly panel_width pixels wide."""
+
+    if self._content_paned is None or self._right_sidebar_frame is None:
       return
 
-    self._right_sidebar_frame = tkinter.Frame(self._main_frame)
-    self._right_sidebar_frame.pack(side=tkinter.RIGHT, fill=tkinter.Y)
+    self._content_paned.update_idletasks()
+    paned_width = self._content_paned.winfo_width()
+
+    if paned_width <= 1:
+      self._root.after(
+        50,
+        lambda: self._position_content_paned_sash(panel_width),
+      )
+
+      return
+
+    sash_position = paned_width - panel_width
+
+    if sash_position < 0:
+      sash_position = 0
+
+    try:
+      self._content_paned.sash_place(0, sash_position, 0)
+    except tkinter.TclError:
+      pass
+
+  def _ensure_right_sidebar_frame(self, panel_width):
+    """Create or resize the right sidebar container to panel_width."""
+
+    self._ensure_content_paned()
+
+    if self._right_sidebar_frame is not None:
+      self._apply_right_sidebar_width(panel_width)
+
+      return
+
+    self._right_sidebar_frame = tkinter.Frame(self._content_paned, width=panel_width)
+    self._right_sidebar_frame.pack_propagate(False)
+    self._content_paned.add(
+      self._right_sidebar_frame,
+      stretch="never",
+      minsize=panel_width,
+    )
+    self._apply_right_sidebar_width(panel_width)
 
   def _setup_segment_list_panel(self):
     """Mount the right-side segment checklist when the loaded GPX has segments."""
@@ -492,16 +628,16 @@ class MainWindow:
       segment_labels.append(segment_label)
 
     panel_width = gis_graphical_editor.segment_list_panel.compute_panel_width(segment_labels)
-    self._right_sidebar_panel_width = panel_width
-    self._ensure_right_sidebar_frame()
+    self._ensure_right_sidebar_frame(panel_width)
     self._segment_list_panel = gis_graphical_editor.segment_list_panel.SegmentListPanel(
       self._right_sidebar_frame,
       segment_summaries,
       self._handle_segment_selection_changed,
+      panel_width,
       self._track_display_options.use_metric_units,
       self._track_display_options.exclude_idle_segments,
     )
-    self._segment_list_panel.pack(side=tkinter.BOTTOM, fill=tkinter.BOTH, expand=True)
+    self._segment_list_panel.pack(side=tkinter.BOTTOM, fill=tkinter.Y, expand=True)
 
   def _setup_track_metadata_panel_if_needed(self, gpx_points):
     """Mount point and segment metadata boxes when the track has a timestamp range."""
@@ -527,7 +663,8 @@ class MainWindow:
       )
     self._track_metadata_panel.pack(side=tkinter.TOP, fill=tkinter.X)
     self._segment_list_panel.pack_forget()
-    self._segment_list_panel.pack(side=tkinter.BOTTOM, fill=tkinter.BOTH, expand=True)
+    self._segment_list_panel.pack(side=tkinter.BOTTOM, fill=tkinter.Y, expand=True)
+    self._apply_right_sidebar_width(panel_width)
 
     if self._last_slider_timestamp is not None:
       self._update_track_metadata_for_slider_timestamp(self._last_slider_timestamp)
