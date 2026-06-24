@@ -22,6 +22,7 @@ class SegmentListPanel(tkinter.Frame):
     master,
     segment_summaries,
     on_selection_changed,
+    on_split_requested,
     panel_width,
     use_metric_units=False,
     exclude_idle_segments=False,
@@ -43,6 +44,7 @@ class SegmentListPanel(tkinter.Frame):
 
     self._segment_summaries = segment_summaries
     self._on_selection_changed = on_selection_changed
+    self._on_split_requested = on_split_requested
     self._selection_variables = []
     self._segment_checkbuttons = []
     self._panel_width = panel_width
@@ -111,11 +113,61 @@ class SegmentListPanel(tkinter.Frame):
       gpx_point,
     )
 
+  def set_split_button_enabled(self, enabled):
+    """Enable or disable the Split button above the segment checklist."""
+
+    if enabled:
+      split_button_state = tkinter.NORMAL
+    else:
+      split_button_state = tkinter.DISABLED
+
+    self._split_button.config(state=split_button_state)
+
+  def collect_unchecked_segment_first_points(self):
+    """Return the first point of every segment whose checkbox is currently cleared."""
+
+    unchecked_first_points = []
+
+    for segment_index, selection_variable in enumerate(self._selection_variables):
+      if selection_variable.get():
+        continue
+
+      segment_summary = self._segment_summaries[segment_index]
+      unchecked_first_points.append(segment_summary.segment_points[0])
+
+    return unchecked_first_points
+
+  def apply_unchecked_segment_first_points(self, unchecked_first_points):
+    """Uncheck segments whose first point matches one of unchecked_first_points."""
+
+    unchecked_first_point_ids = set()
+
+    for first_point in unchecked_first_points:
+      unchecked_first_point_ids.add(id(first_point))
+
+    for segment_index, selection_variable in enumerate(self._selection_variables):
+      segment_summary = self._segment_summaries[segment_index]
+      first_point_id = id(segment_summary.segment_points[0])
+
+      if first_point_id in unchecked_first_point_ids:
+        selection_variable.set(False)
+
   def _build_widgets(self, segment_labels):
     """Lay out a titled scrollable frame of segment checkbuttons."""
 
-    title_label = tkinter.Label(self, text="Segments")
-    title_label.pack(side=tkinter.TOP, anchor=tkinter.W, padx=8, pady=(8, 4))
+    header_row = tkinter.Frame(self)
+    header_row.pack(side=tkinter.TOP, fill=tkinter.X, padx=8, pady=(8, 4))
+
+    title_label = tkinter.Label(header_row, text="Segments")
+    title_label.pack(side=tkinter.LEFT)
+
+    self._split_button = tkinter.Button(
+      header_row,
+      text="Split",
+      command=self._handle_split_button_clicked,
+      state=tkinter.DISABLED,
+    )
+    self._split_button.pack(side=tkinter.RIGHT)
 
     list_container = tkinter.Frame(self)
     list_container.pack(fill=tkinter.BOTH, expand=True, padx=8, pady=(0, 8))
@@ -174,6 +226,11 @@ class SegmentListPanel(tkinter.Frame):
     """Notify the main window when the visible segment set changes."""
 
     self._on_selection_changed()
+
+  def _handle_split_button_clicked(self):
+    """Notify the main window when the user requests a segment split."""
+
+    self._on_split_requested()
 
 
 def compute_panel_width(segment_labels):

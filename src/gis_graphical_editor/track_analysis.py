@@ -792,6 +792,69 @@ def find_segment_summary_for_gpx_point(segment_summaries, gpx_point):
   return None
 
 
+def find_gpx_point_index_in_segment_points(segment_points, gpx_point):
+  """Return the index of gpx_point inside segment_points by object identity."""
+
+  if gpx_point is None:
+    return None
+
+  # Match the slider point to its owning segment index by object identity.
+  for point_index, segment_point in enumerate(segment_points):
+    if segment_point is gpx_point:
+      return point_index
+
+  return None
+
+
+def is_segment_split_allowed_at_point_index(point_index, point_count):
+  """Return True when a split can peel tail points off without emptying either piece."""
+
+  if point_index is None:
+    return False
+
+  if point_index <= 0:
+    return False
+
+  if point_index >= point_count - 1:
+    return False
+
+  return True
+
+
+def split_gpx_segment_point_lists_at_point_index(
+  segment_point_lists,
+  segment_points,
+  split_at_point_index,
+):
+  """Split one segment list into head and tail lists inserted after the current segment."""
+
+  segment_list_index = None
+
+  # Locate the mutable segment list inside the loaded GPX segment collection.
+  for list_index, segment_point_list in enumerate(segment_point_lists):
+    if segment_point_list is segment_points:
+      segment_list_index = list_index
+
+      break
+
+  if segment_list_index is None:
+    return None
+
+  point_count = len(segment_points)
+
+  if not is_segment_split_allowed_at_point_index(split_at_point_index, point_count):
+    return None
+
+  # Move the current point through the last point into a new trailing segment.
+  head_points = segment_points[:split_at_point_index]
+  tail_points = segment_points[split_at_point_index:]
+  updated_segment_point_lists = list(segment_point_lists)
+  updated_segment_point_lists[segment_list_index] = head_points
+  updated_segment_point_lists.insert(segment_list_index + 1, tail_points)
+
+  return updated_segment_point_lists
+
+
 def format_gpx_point_metadata_lines(gpx_point):
   """Return label lines for one GPX point and its additional metadata fields."""
 

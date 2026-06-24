@@ -739,3 +739,76 @@ def test_format_segment_summary_metadata_lines_includes_derived_values():
   assert metadata_lines[3] == "latest_timestamp: 2024-06-01 10:00:00"
   assert metadata_lines[4] == "interval: 02:00:00"
   assert metadata_lines[6] == "idle: False"
+
+
+def test_is_segment_split_allowed_at_point_index_rejects_endpoints():
+  assert gis_graphical_editor.track_analysis.is_segment_split_allowed_at_point_index(0, 5) is False
+  assert gis_graphical_editor.track_analysis.is_segment_split_allowed_at_point_index(4, 5) is False
+  assert gis_graphical_editor.track_analysis.is_segment_split_allowed_at_point_index(2, 5) is True
+
+
+def test_split_gpx_segment_point_lists_at_point_index_moves_tail_into_new_segment():
+  first_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    40.0,
+    -105.0,
+    datetime.datetime(2024, 6, 1, 8, 0, 0),
+  )
+  second_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    40.1,
+    -105.1,
+    datetime.datetime(2024, 6, 1, 9, 0, 0),
+  )
+  third_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    40.2,
+    -105.2,
+    datetime.datetime(2024, 6, 1, 10, 0, 0),
+  )
+  fourth_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    40.3,
+    -105.3,
+    datetime.datetime(2024, 6, 1, 11, 0, 0),
+  )
+  other_segment = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(
+      41.0,
+      -106.0,
+      datetime.datetime(2024, 6, 1, 12, 0, 0),
+    ),
+  ]
+  segment_points = [first_point, second_point, third_point, fourth_point]
+  segment_point_lists = [segment_points, other_segment]
+
+  updated_segment_point_lists = \
+    gis_graphical_editor.track_analysis.split_gpx_segment_point_lists_at_point_index(
+      segment_point_lists,
+      segment_points,
+      2,
+    )
+
+  assert updated_segment_point_lists[0] == [first_point, second_point]
+  assert updated_segment_point_lists[1] == [third_point, fourth_point]
+  assert updated_segment_point_lists[2] is other_segment
+
+
+def test_split_gpx_segment_point_lists_at_point_index_returns_none_for_invalid_split():
+  segment_points = [
+    gis_graphical_editor.gpx_utility.GpxPointRecord(
+      40.0,
+      -105.0,
+      datetime.datetime(2024, 6, 1, 8, 0, 0),
+    ),
+    gis_graphical_editor.gpx_utility.GpxPointRecord(
+      40.1,
+      -105.1,
+      datetime.datetime(2024, 6, 1, 9, 0, 0),
+    ),
+  ]
+
+  updated_segment_point_lists = \
+    gis_graphical_editor.track_analysis.split_gpx_segment_point_lists_at_point_index(
+      [segment_points],
+      segment_points,
+      0,
+    )
+
+  assert updated_segment_point_lists is None

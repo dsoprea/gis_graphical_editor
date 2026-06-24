@@ -428,6 +428,104 @@ class MainWindow:
 
     if self._last_slider_timestamp is not None:
       self._update_track_metadata_for_slider_timestamp(self._last_slider_timestamp)
+      self._update_segment_split_button_state(self._last_slider_timestamp)
+
+  def _rebuild_loaded_gpx_points_from_segments(self):
+    """Flatten _loaded_gpx_segments back into _loaded_gpx_points after a segment edit."""
+
+    gpx_points = []
+
+    for segment_points in self._loaded_gpx_segments:
+      for gpx_point in segment_points:
+        gpx_points.append(gpx_point)
+
+    self._loaded_gpx_points = gpx_points
+
+  def _handle_segment_split_requested(self):
+    """Split the highlighted segment at the slider point into head and tail segments."""
+
+    if self._loaded_gpx_segments is None or self._segment_list_panel is None:
+      return
+
+    if self._last_slider_timestamp is None:
+      return
+
+    visible_gpx_points = self._get_visible_gpx_points()
+    nearest_gpx_point = \
+      gis_graphical_editor.track_analysis.find_gpx_point_nearest_timestamp(
+        visible_gpx_points,
+        self._last_slider_timestamp,
+      )
+    segment_summary = self._segment_list_panel.find_segment_summary_for_gpx_point(
+      nearest_gpx_point,
+    )
+
+    if segment_summary is None:
+      return
+
+    point_index = \
+      gis_graphical_editor.track_analysis.find_gpx_point_index_in_segment_points(
+        segment_summary.segment_points,
+        nearest_gpx_point,
+      )
+    updated_segment_point_lists = \
+      gis_graphical_editor.track_analysis.split_gpx_segment_point_lists_at_point_index(
+        self._loaded_gpx_segments,
+        segment_summary.segment_points,
+        point_index,
+      )
+
+    if updated_segment_point_lists is None:
+      return
+
+    unchecked_first_points = \
+      self._segment_list_panel.collect_unchecked_segment_first_points()
+    self._loaded_gpx_segments = updated_segment_point_lists
+    self._rebuild_loaded_gpx_points_from_segments()
+    self._setup_segment_list_panel()
+
+    if self._segment_list_panel is not None:
+      self._segment_list_panel.apply_unchecked_segment_first_points(unchecked_first_points)
+
+    self._refresh_track_display()
+
+  def _update_segment_split_button_state(self, selected_timestamp):
+    """Enable Split only when the slider sits on a splittable interior segment point."""
+
+    if self._segment_list_panel is None or self._time_slider_panel is None:
+      return
+
+    if selected_timestamp is None:
+      self._segment_list_panel.set_split_button_enabled(False)
+
+      return
+
+    visible_gpx_points = self._get_visible_gpx_points()
+    nearest_gpx_point = \
+      gis_graphical_editor.track_analysis.find_gpx_point_nearest_timestamp(
+        visible_gpx_points,
+        selected_timestamp,
+      )
+    segment_summary = self._segment_list_panel.find_segment_summary_for_gpx_point(
+      nearest_gpx_point,
+    )
+
+    if segment_summary is None:
+      self._segment_list_panel.set_split_button_enabled(False)
+
+      return
+
+    point_index = \
+      gis_graphical_editor.track_analysis.find_gpx_point_index_in_segment_points(
+        segment_summary.segment_points,
+        nearest_gpx_point,
+      )
+    split_allowed = \
+      gis_graphical_editor.track_analysis.is_segment_split_allowed_at_point_index(
+        point_index,
+        segment_summary.point_count,
+      )
+    self._segment_list_panel.set_split_button_enabled(split_allowed)
 
   def _refresh_track_display(self):
     """Draw the path, overlays, bounds, and slider for the currently visible points."""
@@ -633,6 +731,7 @@ class MainWindow:
       self._right_sidebar_frame,
       segment_summaries,
       self._handle_segment_selection_changed,
+      self._handle_segment_split_requested,
       panel_width,
       self._track_display_options.use_metric_units,
       self._track_display_options.exclude_idle_segments,
@@ -693,7 +792,9 @@ class MainWindow:
     self._setup_track_metadata_panel_if_needed(gpx_points)
 
     if self._last_slider_timestamp is not None:
-      self._update_segment_list_slider_highlight(self._last_slider_timestamp)
+      self._time_slider_panel.set_selected_timestamp(self._last_slider_timestamp)
+    else:
+      self._update_segment_split_button_state(None)
 
   def _update_track_metadata_for_slider_timestamp(self, selected_timestamp):
     """Refresh the point and segment metadata boxes for the slider time."""
@@ -761,6 +862,7 @@ class MainWindow:
     self._ensure_map_shows_position(latitude, longitude)
     self._update_track_metadata_for_slider_timestamp(selected_timestamp)
     self._update_segment_list_slider_highlight(selected_timestamp)
+    self._update_segment_split_button_state(selected_timestamp)
 
   def _update_slider_position_marker(self, latitude, longitude):
     """Create or reposition the large red dot for the current slider time."""
