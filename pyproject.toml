@@ -7,7 +7,9 @@ name = "gge"
 version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = [
+  "cairosvg>=2.7",
   "gpxpy>=1.6.0",
+  "Pillow>=10.0",
   "tkintermapview>=1.29",
 ]
 

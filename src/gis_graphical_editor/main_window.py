@@ -18,6 +18,7 @@ import gis_graphical_editor.map_overlay_display_manager
 import gis_graphical_editor.map_overlay_mode_panel
 import gis_graphical_editor.map_segment_label_overlay
 import gis_graphical_editor.overlay_mode
+import gis_graphical_editor.right_sidebar_drawer
 import gis_graphical_editor.segment_list_panel
 import gis_graphical_editor.time_slider_panel
 import gis_graphical_editor.track_analysis
@@ -62,7 +63,7 @@ class MainWindow:
     self._main_frame.pack(fill=tkinter.BOTH, expand=True)
     self._main_frame.grid_rowconfigure(0, weight=1)
     self._main_frame.grid_columnconfigure(0, weight=1)
-    self._content_paned = None
+    self._main_frame.grid_columnconfigure(1, weight=0)
     self._map_column_frame = None
     self._map_widget = None
     self._file_menu = None
@@ -74,11 +75,11 @@ class MainWindow:
     self._segment_label_overlay_manager = None
     self._time_slider_panel = None
     self._segment_list_panel = None
+    self._right_sidebar_drawer = None
     self._right_sidebar_frame = None
     self._track_metadata_panel = None
     self._last_slider_timestamp = None
     self._right_sidebar_panel_width = None
-    self._content_paned_sash_sync_scheduled = False
     self._slider_position_marker = None
     self._loaded_gpx_points = None
     self._loaded_gpx_segments = None
@@ -416,38 +417,14 @@ class MainWindow:
 
     return aligned_segment_label_texts
 
-  def _ensure_content_paned(self):
-    """Create the horizontal split between the map column and right sidebar."""
-
-    if self._content_paned is not None:
-      return
-
-    self._content_paned = tkinter.PanedWindow(
-      self._main_frame,
-      orient=tkinter.HORIZONTAL,
-      sashwidth=4,
-    )
-    self._content_paned.grid(row=0, column=0, sticky="nsew")
-    self._content_paned.bind("<Configure>", self._handle_content_paned_configure)
-
-  def _handle_content_paned_configure(self, event):
-    """Keep the right sidebar at the computed width when the window is resized."""
-
-    if self._right_sidebar_panel_width is None:
-      return
-
-    # sash_place during <Configure> prevents the map pane from shrinking; defer until idle.
-    self._schedule_content_paned_sash(self._right_sidebar_panel_width)
-
   def _ensure_map_widget(self):
     """Create the OSM map widget on first use and bind map interactions."""
 
     if self._map_widget is not None:
       return
 
-    self._ensure_content_paned()
-    self._map_column_frame = tkinter.Frame(self._content_paned)
-    self._content_paned.add(self._map_column_frame, stretch="always")
+    self._map_column_frame = tkinter.Frame(self._main_frame)
+    self._map_column_frame.grid(row=0, column=0, sticky="nsew")
 
     self._map_widget = tkintermapview.TkinterMapView(self._map_column_frame, corner_radius=0)
     self._map_widget.pack(fill=tkinter.BOTH, expand=True)
@@ -790,13 +767,12 @@ class MainWindow:
     self._remove_track_metadata_panel()
     self._remove_segment_list_panel()
 
-    if self._right_sidebar_frame is None:
+    if self._right_sidebar_drawer is None:
       return
 
-    if self._content_paned is not None:
-      self._content_paned.forget(self._right_sidebar_frame)
-
-    self._right_sidebar_frame.destroy()
+    self._right_sidebar_drawer.grid_forget()
+    self._right_sidebar_drawer.destroy()
+    self._right_sidebar_drawer = None
     self._right_sidebar_frame = None
 
   def _remove_time_slider_panel(self):
@@ -831,16 +807,9 @@ class MainWindow:
       self._map_widget = None
 
     if self._map_column_frame is not None:
-      if self._content_paned is not None:
-        self._content_paned.forget(self._map_column_frame)
-
+      self._map_column_frame.grid_forget()
       self._map_column_frame.destroy()
       self._map_column_frame = None
-
-    if self._content_paned is not None:
-      self._content_paned.grid_forget()
-      self._content_paned.destroy()
-      self._content_paned = None
 
     self._green_point_icon = None
     self._orange_interval_icon = None
@@ -1290,15 +1259,15 @@ class MainWindow:
     self._map_widget.fit_bounding_box(position_top_left, position_bottom_right)
 
   def _apply_right_sidebar_width(self, panel_width):
-    """Keep the sidebar paned pane and child panels at panel_width."""
+    """Keep the drawer content area and child panels at panel_width."""
 
     self._right_sidebar_panel_width = panel_width
 
+    if self._right_sidebar_drawer is not None:
+      self._right_sidebar_drawer.set_content_width(panel_width)
+
     if self._right_sidebar_frame is not None:
       self._right_sidebar_frame.config(width=panel_width)
-
-    if self._content_paned is not None and self._right_sidebar_frame is not None:
-      self._content_paned.paneconfigure(self._right_sidebar_frame, minsize=panel_width)
 
     if self._segment_list_panel is not None:
       self._segment_list_panel.set_panel_width(panel_width)
@@ -1306,65 +1275,19 @@ class MainWindow:
     if self._track_metadata_panel is not None:
       self._track_metadata_panel.set_panel_width(panel_width)
 
-    self._schedule_content_paned_sash(panel_width)
-
-  def _schedule_content_paned_sash(self, panel_width):
-    """Defer sash placement until Tk has laid out the paned window."""
-
-    if self._content_paned_sash_sync_scheduled:
-      return
-
-    self._content_paned_sash_sync_scheduled = True
-    self._root.after_idle(
-      lambda: self._position_content_paned_sash(panel_width),
-    )
-
-  def _position_content_paned_sash(self, panel_width):
-    """Pin the sash so the right sidebar is exactly panel_width pixels wide."""
-
-    self._content_paned_sash_sync_scheduled = False
-
-    if self._content_paned is None or self._right_sidebar_frame is None:
-      return
-
-    self._content_paned.update_idletasks()
-    paned_width = self._content_paned.winfo_width()
-
-    if paned_width <= 1:
-      self._root.after(
-        50,
-        lambda: self._position_content_paned_sash(panel_width),
-      )
-
-      return
-
-    sash_position = paned_width - panel_width
-
-    if sash_position < 0:
-      sash_position = 0
-
-    try:
-      self._content_paned.sash_place(0, sash_position, 0)
-    except tkinter.TclError:
-      pass
-
   def _ensure_right_sidebar_frame(self, panel_width):
-    """Create or resize the right sidebar container to panel_width."""
+    """Create or resize the right sidebar drawer to panel_width."""
 
-    self._ensure_content_paned()
-
-    if self._right_sidebar_frame is not None:
+    if self._right_sidebar_drawer is not None:
       self._apply_right_sidebar_width(panel_width)
 
       return
 
-    self._right_sidebar_frame = tkinter.Frame(self._content_paned, width=panel_width)
+    self._right_sidebar_drawer = \
+      gis_graphical_editor.right_sidebar_drawer.RightSidebarDrawer(self._main_frame)
+    self._right_sidebar_drawer.grid(row=0, column=1, sticky="ns")
+    self._right_sidebar_frame = self._right_sidebar_drawer.content_frame
     self._right_sidebar_frame.pack_propagate(False)
-    self._content_paned.add(
-      self._right_sidebar_frame,
-      stretch="never",
-      minsize=panel_width,
-    )
     self._apply_right_sidebar_width(panel_width)
 
   def _setup_segment_list_panel(self):

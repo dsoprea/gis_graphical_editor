@@ -10,6 +10,7 @@ Complete catalog of GIS Graphical Editor (`gge`) capabilities, including map dis
 - **Default window** size 1024×768 with title "GIS Graphical Editor".
 - **Console entry point** `gge` (package name `gge`, import path `gis_graphical_editor`).
 - **Lazy map creation**: the map widget is created only after a GPX file is successfully loaded; closing the track destroys the widget.
+- **Right sidebar drawer**: when timestamps are available, track metadata and the segment list live in a collapsible drawer on the right. When expanded, a black `hide.svg` handle sits at the top-right inside the drawer; when collapsed, the mirrored handle stays on the narrow left-edge strip. Drawer width is fixed from segment label content.
 
 ## GPX loading
 

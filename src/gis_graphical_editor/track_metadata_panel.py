@@ -4,6 +4,9 @@ import tkinter
 import tkinter.font
 
 _METADATA_BOX_HEIGHT = 8
+_NO_POINT_SELECTED_PLACEHOLDER = "(No point selected)"
+_NO_POINT_SELECTED_FOREGROUND = "#888888"
+_NO_POINT_SELECTED_TEXT_TAG = "no_point_selected"
 
 
 class TrackMetadataPanel(tkinter.Frame):
@@ -27,7 +30,7 @@ class TrackMetadataPanel(tkinter.Frame):
     self._set_metadata_text(self._point_metadata_text, metadata_lines)
 
   def clear(self):
-    """Empty the point metadata box."""
+    """Show the gray no-point-selected placeholder in the point metadata box."""
 
     self.set_point_metadata([])
 
@@ -49,6 +52,7 @@ class TrackMetadataPanel(tkinter.Frame):
         metadata_text_width,
         top_padding=(8, 0),
       )
+    self.set_point_metadata([])
 
   def _build_metadata_section(self, section_title, metadata_text_width, top_padding):
     """Return a read-only metadata text widget under a bold section title."""
@@ -105,6 +109,10 @@ class TrackMetadataPanel(tkinter.Frame):
     )
     metadata_text.pack(side=tkinter.LEFT, fill=tkinter.BOTH, expand=True)
     scrollbar.config(command=metadata_text.yview)
+    metadata_text.tag_configure(
+      _NO_POINT_SELECTED_TEXT_TAG,
+      foreground=_NO_POINT_SELECTED_FOREGROUND,
+    )
 
     return metadata_text
 
@@ -119,6 +127,11 @@ class TrackMetadataPanel(tkinter.Frame):
       metadata_text_widget.insert(tkinter.END, metadata_body)
       line_count = len(metadata_lines)
     else:
+      metadata_text_widget.insert(
+        tkinter.END,
+        _NO_POINT_SELECTED_PLACEHOLDER,
+        _NO_POINT_SELECTED_TEXT_TAG,
+      )
       line_count = 1
 
     if line_count > _METADATA_BOX_HEIGHT:
