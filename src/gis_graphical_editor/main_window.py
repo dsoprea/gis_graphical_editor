@@ -752,6 +752,9 @@ class MainWindow:
     self._track_metadata_panel.destroy()
     self._track_metadata_panel = None
 
+    if self._right_sidebar_drawer is not None:
+      self._right_sidebar_drawer.mount_collapse_handle_on_content_header()
+
   def _remove_segment_list_panel(self):
     """Destroy the optional segment list panel when unloading a track."""
 
@@ -822,6 +825,36 @@ class MainWindow:
       weight=1,
       minsize=map_column_minimum_width,
     )
+    self._ensure_window_wide_enough_for_content()
+
+  def _ensure_window_wide_enough_for_content(self):
+    """Grow the root window when the map minimum width plus sidebar exceeds it."""
+
+    self._root.update_idletasks()
+    map_column_minimum_width = self._main_frame.grid_columnconfigure(0)["minsize"]
+
+    if self._time_slider_container_frame is not None:
+      map_column_minimum_width = max(
+        map_column_minimum_width,
+        self._time_slider_container_frame.winfo_reqwidth(),
+      )
+
+    sidebar_width = 0
+
+    if self._right_sidebar_drawer is not None:
+      sidebar_width = self._right_sidebar_drawer.winfo_reqwidth()
+
+    required_window_width = map_column_minimum_width + sidebar_width
+    current_window_width = self._root.winfo_width()
+    current_window_height = self._root.winfo_height()
+
+    if current_window_width < required_window_width:
+      self._root.geometry(
+        "{required_window_width}x{current_window_height}".format(
+          required_window_width=required_window_width,
+          current_window_height=current_window_height,
+        ),
+      )
 
   def _remove_map_widget(self):
     """Tear down the map, slider, cached icons, and loaded point data."""
@@ -1195,6 +1228,12 @@ class MainWindow:
     if not visible_gpx_points:
       self._setup_time_slider_if_needed(visible_gpx_points)
 
+      if self._track_metadata_panel is not None:
+        if self._last_slider_timestamp is not None:
+          self._update_track_metadata_for_slider_timestamp(self._last_slider_timestamp)
+        else:
+          self._track_metadata_panel.clear()
+
       return
 
     track_points = []
@@ -1309,6 +1348,8 @@ class MainWindow:
     if self._track_metadata_panel is not None:
       self._track_metadata_panel.set_panel_width(panel_width)
 
+    self._ensure_window_wide_enough_for_content()
+
   def _ensure_right_sidebar_frame(self, panel_width):
     """Create or resize the right sidebar drawer to panel_width."""
 
@@ -1366,12 +1407,24 @@ class MainWindow:
     self._segment_list_panel.pack(side=tkinter.BOTTOM, fill=tkinter.Y, expand=True)
     self._sync_segment_undo_button()
 
+  def _resolve_gpx_points_for_timestamp_range(self, gpx_points):
+    """Return gpx_points when non-empty, otherwise the loaded track points."""
+
+    if gpx_points:
+      return gpx_points
+
+    if self._loaded_gpx_points is not None:
+      return self._loaded_gpx_points
+
+    return []
+
   def _setup_track_metadata_panel_if_needed(self, gpx_points):
-    """Mount point and segment metadata boxes when the track has a timestamp range."""
+    """Mount point metadata when the loaded track has a timestamp range."""
 
     self._remove_track_metadata_panel()
 
-    timestamp_range = gis_graphical_editor.track_analysis.get_timestamp_range(gpx_points)
+    timestamp_gpx_points = self._resolve_gpx_points_for_timestamp_range(gpx_points)
+    timestamp_range = gis_graphical_editor.track_analysis.get_timestamp_range(timestamp_gpx_points)
 
     if timestamp_range is None:
       return
@@ -1387,6 +1440,7 @@ class MainWindow:
       gis_graphical_editor.track_metadata_panel.TrackMetadataPanel(
         self._right_sidebar_frame,
         panel_width,
+        sidebar_drawer=self._right_sidebar_drawer,
       )
     self._track_metadata_panel.pack(side=tkinter.TOP, fill=tkinter.X)
     self._segment_list_panel.pack_forget()
@@ -1399,7 +1453,8 @@ class MainWindow:
   def _setup_time_slider_if_needed(self, gpx_points):
     """Mount or refresh the time slider when timestamps span a usable range."""
 
-    timestamp_range = gis_graphical_editor.track_analysis.get_timestamp_range(gpx_points)
+    timestamp_gpx_points = self._resolve_gpx_points_for_timestamp_range(gpx_points)
+    timestamp_range = gis_graphical_editor.track_analysis.get_timestamp_range(timestamp_gpx_points)
 
     if timestamp_range is None:
       self._remove_time_slider_panel()
@@ -1453,6 +1508,12 @@ class MainWindow:
       return
 
     visible_gpx_points = self._get_visible_gpx_points()
+
+    if not visible_gpx_points:
+      self._track_metadata_panel.clear()
+
+      return
+
     nearest_gpx_point = gis_graphical_editor.track_analysis.find_gpx_point_nearest_timestamp(
       visible_gpx_points,
       selected_timestamp,
@@ -1492,12 +1553,23 @@ class MainWindow:
     self._last_slider_timestamp = selected_timestamp
     visible_gpx_points = self._get_visible_gpx_points()
 
+    if not visible_gpx_points:
+      self._update_track_metadata_for_slider_timestamp(selected_timestamp)
+      self._update_segment_list_slider_highlight(selected_timestamp)
+      self._update_segment_split_button_state(selected_timestamp)
+
+      return
+
     track_position = gis_graphical_editor.track_analysis.find_position_at_timestamp(
       visible_gpx_points,
       selected_timestamp,
     )
 
     if track_position is None:
+      self._update_track_metadata_for_slider_timestamp(selected_timestamp)
+      self._update_segment_list_slider_highlight(selected_timestamp)
+      self._update_segment_split_button_state(selected_timestamp)
+
       return
 
     latitude, longitude = track_position

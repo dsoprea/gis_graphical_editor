@@ -96,11 +96,12 @@ class MapSegmentLabelOverlayManager:
 
     def draw_initial_array_with_segment_labels():
       original_draw_initial_array()
-      overlay_manager._schedule_draw_all()
+      overlay_manager.draw_all()
 
     def draw_move_with_segment_labels(called_after_zoom=False):
       original_draw_move(called_after_zoom)
-      overlay_manager._schedule_draw_all()
+      # Redraw immediately so labels track tiles during continuous map drags.
+      overlay_manager.draw_all()
 
     map_widget.draw_initial_array = draw_initial_array_with_segment_labels
     map_widget.draw_move = draw_move_with_segment_labels

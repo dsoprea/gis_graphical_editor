@@ -5,6 +5,7 @@ import tkinter
 
 import gis_graphical_editor.map_icon_utility
 import gis_graphical_editor.track_analysis
+import gis_graphical_editor.track_metadata_panel
 
 
 _TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -98,6 +99,19 @@ def format_current_slider_position_label(
       all_position_number=all_position_number,
       all_point_count=all_point_count,
     )
+
+
+def format_current_slider_position_label_without_location(timestamp):
+  """Return the centered slider label when no timed point is available."""
+
+  timestamp_text = format_slider_endpoint_timestamp(timestamp)
+  placeholder_text = \
+    gis_graphical_editor.track_metadata_panel._NO_LOCATION_SELECTED_PLACEHOLDER
+
+  return "{timestamp_text}\n{placeholder_text}".format(
+    timestamp_text=timestamp_text,
+    placeholder_text=placeholder_text,
+  )
 
 
 def clamp_selected_seconds(selected_seconds, earliest_timestamp, latest_timestamp):
@@ -273,6 +287,18 @@ class TimeSliderPanel(tkinter.Frame):
 
     self._time_scale.set(clamped_seconds)
     selected_timestamp = self._build_selected_timestamp(clamped_seconds)
+
+    if not self._timed_gpx_points:
+      self._current_point_index = 0
+      current_label_text = format_current_slider_position_label_without_location(
+        selected_timestamp,
+      )
+      self._current_time_label.config(text=current_label_text)
+      self._update_step_button_states()
+      self._on_timestamp_changed(selected_timestamp)
+      self._applying_selected_seconds = False
+
+      return
 
     if selected_point_index is not None:
       point_index = selected_point_index
@@ -450,6 +476,15 @@ class TimeSliderPanel(tkinter.Frame):
 
   def _update_step_button_states(self):
     """Disable step and play buttons at the first and last timed points."""
+
+    if not self._timed_gpx_points:
+      disabled_button_state = tkinter.DISABLED
+      self._previous_point_button.config(state=disabled_button_state)
+      self._next_point_button.config(state=disabled_button_state)
+      self._reverse_play_button.config(state=disabled_button_state)
+      self._forward_play_button.config(state=disabled_button_state)
+
+      return
 
     last_point_index = len(self._timed_gpx_points) - 1
 

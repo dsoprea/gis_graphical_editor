@@ -26,8 +26,10 @@ class RightSidebarDrawer(tkinter.Frame):
     self._collapsed = False
     self._collapse_handle_icon = None
     self._expand_handle_icon = None
+    self._collapse_handle_button = None
     self.pack_propagate(False)
     self._build_widgets()
+    self.mount_collapse_handle_on_content_header()
     self._sync_drawer_geometry()
 
   def is_collapsed(self):
@@ -77,6 +79,31 @@ class RightSidebarDrawer(tkinter.Frame):
     else:
       self.collapse()
 
+  def mount_collapse_handle(self, parent_frame):
+    """Place the expanded-state collapse handle on the right of parent_frame."""
+
+    if self._content_header_frame is not None:
+      self._content_header_frame.pack_forget()
+
+    if self._collapse_handle_button is not None:
+      self._collapse_handle_button.destroy()
+
+    self._collapse_handle_button = self._build_handle_button(
+      parent_frame,
+      self._collapse_handle_icon,
+    )
+    self._collapse_handle_button.pack(
+      side=tkinter.RIGHT,
+      padx=_HANDLE_MARGIN,
+      pady=0,
+    )
+
+  def mount_collapse_handle_on_content_header(self):
+    """Place the collapse handle on the drawer content header when metadata is absent."""
+
+    self._content_header_frame.pack(side=tkinter.TOP, fill=tkinter.X)
+    self.mount_collapse_handle(self._content_header_frame)
+
   def _expand_drawer(self):
     """Reveal the content frame and hide the left-edge expand handle."""
 
@@ -121,19 +148,9 @@ class RightSidebarDrawer(tkinter.Frame):
     self._content_outer_frame = tkinter.Frame(self)
     self._content_outer_frame.grid(row=0, column=0, sticky="ns")
     self._content_outer_frame.grid_propagate(False)
-    self._collapse_handle_row = tkinter.Frame(self._content_outer_frame)
-    self._collapse_handle_row.pack(side=tkinter.TOP, fill=tkinter.X)
-    self._collapse_handle_button = self._build_handle_button(
-      self._collapse_handle_row,
-      self._collapse_handle_icon,
-    )
-    self._collapse_handle_button.pack(
-      side=tkinter.RIGHT,
-      padx=_HANDLE_MARGIN,
-      pady=_HANDLE_MARGIN,
-    )
     self.content_frame = tkinter.Frame(self._content_outer_frame)
     self.content_frame.pack(fill=tkinter.BOTH, expand=True)
+    self._content_header_frame = tkinter.Frame(self.content_frame)
 
   def _build_handle_button(self, parent_frame, handle_icon):
     """Return a compact image button wired to toggle_collapsed."""

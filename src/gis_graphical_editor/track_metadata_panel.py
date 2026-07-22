@@ -4,21 +4,23 @@ import tkinter
 import tkinter.font
 
 _METADATA_BOX_HEIGHT = 8
-_NO_POINT_SELECTED_PLACEHOLDER = "(No point selected)"
-_NO_POINT_SELECTED_FOREGROUND = "#888888"
-_NO_POINT_SELECTED_TEXT_TAG = "no_point_selected"
+_CURRENT_LOCATION_SECTION_TITLE = "Current location"
+_NO_LOCATION_SELECTED_PLACEHOLDER = "(No location selected.)"
+_NO_LOCATION_SELECTED_FOREGROUND = "#555555"
+_NO_LOCATION_SELECTED_TEXT_TAG = "no_location_selected"
 
 
 class TrackMetadataPanel(tkinter.Frame):
   """Point metadata readout above the segment checklist."""
 
-  def __init__(self, master, panel_width):
+  def __init__(self, master, panel_width, sidebar_drawer=None):
     """Build a scrollable point metadata box at panel_width."""
 
     super().__init__(master, width=panel_width)
 
     # Match the right sidebar frame instead of default white Text backgrounds.
     self._background_color = master.cget("bg")
+    self._sidebar_drawer = sidebar_drawer
     self.config(bg=self._background_color)
     self._section_title_font = tkinter.font.Font(self, weight="bold")
 
@@ -30,7 +32,7 @@ class TrackMetadataPanel(tkinter.Frame):
     self._set_metadata_text(self._point_metadata_text, metadata_lines)
 
   def clear(self):
-    """Show the gray no-point-selected placeholder in the point metadata box."""
+    """Show the dark-gray no-location-selected placeholder in the metadata box."""
 
     self.set_point_metadata([])
 
@@ -48,7 +50,7 @@ class TrackMetadataPanel(tkinter.Frame):
 
     self._point_metadata_text = \
       self._build_metadata_section(
-        "Current Point",
+        _CURRENT_LOCATION_SECTION_TITLE,
         metadata_text_width,
         top_padding=(8, 0),
       )
@@ -60,14 +62,20 @@ class TrackMetadataPanel(tkinter.Frame):
     section_frame = tkinter.Frame(self, bg=self._background_color, bd=0, relief=tkinter.FLAT)
     section_frame.pack(side=tkinter.TOP, fill=tkinter.X, padx=8, pady=top_padding)
 
+    title_row = tkinter.Frame(section_frame, bg=self._background_color, bd=0, relief=tkinter.FLAT)
+    title_row.pack(side=tkinter.TOP, fill=tkinter.X)
+
     title_label = tkinter.Label(
-      section_frame,
+      title_row,
       text=section_title,
       bg=self._background_color,
       font=self._section_title_font,
       anchor=tkinter.W,
     )
-    title_label.pack(side=tkinter.TOP, fill=tkinter.X, anchor=tkinter.W)
+    title_label.pack(side=tkinter.LEFT, fill=tkinter.X, expand=True, anchor=tkinter.W)
+
+    if self._sidebar_drawer is not None:
+      self._sidebar_drawer.mount_collapse_handle(title_row)
 
     return self._build_metadata_text_box(section_frame, metadata_text_width)
 
@@ -110,8 +118,8 @@ class TrackMetadataPanel(tkinter.Frame):
     metadata_text.pack(side=tkinter.LEFT, fill=tkinter.BOTH, expand=True)
     scrollbar.config(command=metadata_text.yview)
     metadata_text.tag_configure(
-      _NO_POINT_SELECTED_TEXT_TAG,
-      foreground=_NO_POINT_SELECTED_FOREGROUND,
+      _NO_LOCATION_SELECTED_TEXT_TAG,
+      foreground=_NO_LOCATION_SELECTED_FOREGROUND,
     )
 
     return metadata_text
@@ -129,8 +137,8 @@ class TrackMetadataPanel(tkinter.Frame):
     else:
       metadata_text_widget.insert(
         tkinter.END,
-        _NO_POINT_SELECTED_PLACEHOLDER,
-        _NO_POINT_SELECTED_TEXT_TAG,
+        _NO_LOCATION_SELECTED_PLACEHOLDER,
+        _NO_LOCATION_SELECTED_TEXT_TAG,
       )
       line_count = 1
 

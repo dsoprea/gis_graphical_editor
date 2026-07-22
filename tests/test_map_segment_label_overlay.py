@@ -26,6 +26,67 @@ def test_compute_readable_canvas_angle_degrees_flips_downward_lines():
   assert angle_degrees == 0.0
 
 
+def test_draw_move_redraws_segment_labels_without_waiting_for_idle():
+  root = tkinter.Tk()
+  root.withdraw()
+  overlay_manager = gis_graphical_editor.map_segment_label_overlay.MapSegmentLabelOverlayManager(
+    root,
+  )
+  draw_all_call_count = 0
+  original_draw_all = overlay_manager.draw_all
+
+  def draw_all_spy():
+    nonlocal draw_all_call_count
+    draw_all_call_count += 1
+    original_draw_all()
+
+  overlay_manager.draw_all = draw_all_spy
+
+  class FakeMapWidget:
+    zoom = 15
+    width = 400
+    height = 300
+    upper_left_tile_pos = (0.0, 0.0)
+    lower_right_tile_pos = (1.0, 1.0)
+
+    def __init__(self):
+      self.canvas = tkinter.Canvas(root, width=400, height=300)
+      self._gge_segment_label_overlay_redraw_hooks_installed = False
+      self._gge_segment_label_overlay_z_order_hook_installed = False
+      self.canvas_tile_array = [[object()]]
+
+    def draw_initial_array(self):
+      pass
+
+    def draw_move(self, called_after_zoom=False):
+      self.upper_left_tile_pos = (0.2, 0.1)
+      self.lower_right_tile_pos = (1.2, 1.1)
+
+    def manage_z_order(self):
+      pass
+
+  map_widget = FakeMapWidget()
+  segment_label_placement = gis_graphical_editor.track_analysis.SegmentLabelPlacement(
+    label="Lake Nona",
+    first_latitude=28.4,
+    first_longitude=-81.2,
+    second_latitude=28.41,
+    second_longitude=-81.19,
+  )
+  overlay_manager.install_on_map_widget(map_widget)
+  overlay_manager.set_segment_label_placements([segment_label_placement])
+  overlay_manager.draw_all()
+  label_canvas_item_id = overlay_manager._canvas_text_item_ids[-1]
+  label_position_before_move = map_widget.canvas.coords(label_canvas_item_id)
+  map_widget.draw_move()
+  label_position_after_move = map_widget.canvas.coords(label_canvas_item_id)
+  overlay_manager.draw_all = original_draw_all
+  root.destroy()
+
+  assert draw_all_call_count == 2
+  assert label_position_before_move != label_position_after_move
+
+
 def test_install_on_map_widget_redraws_labels_after_draw_initial_array():
   root = tkinter.Tk()
   root.withdraw()
