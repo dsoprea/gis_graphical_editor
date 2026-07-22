@@ -6,6 +6,7 @@ import time
 import tkinter
 import tkinter.filedialog
 import tkinter.messagebox
+import tkinter.simpledialog
 
 import tkintermapview
 import tkintermapview.utility_functions
@@ -13,7 +14,10 @@ import tkintermapview.utility_functions
 import gis_graphical_editor.gpx_utility
 import gis_graphical_editor.map_icon_utility
 import gis_graphical_editor.map_marker_tooltip_utility
+import gis_graphical_editor.map_overlay_display_manager
+import gis_graphical_editor.map_overlay_mode_panel
 import gis_graphical_editor.map_segment_label_overlay
+import gis_graphical_editor.overlay_mode
 import gis_graphical_editor.segment_list_panel
 import gis_graphical_editor.time_slider_panel
 import gis_graphical_editor.track_analysis
@@ -37,6 +41,7 @@ _SEGMENT_NAME_MARKER_TEXT = "#9B30FF"
 _MAP_VISIBILITY_MARGIN = 0.05
 _MAP_CONTROL_CLICK_STATE_MASK = 0x0004
 _CONTROL_KEYSYM_NAMES = frozenset({"Control_L", "Control_R"})
+_WAYPOINT_CLICK_PIXEL_THRESHOLD = 16
 
 
 class MainWindow:
@@ -86,6 +91,12 @@ class MainWindow:
     self._original_map_mouse_release = None
     self._original_map_mouse_move = None
     self._original_map_mouse_zoom = None
+    self._overlay_mode_active = False
+    self._pending_overlay_locations = []
+    self._pushed_captured_overlays = []
+    self._map_overlay_mode_panel = None
+    self._map_overlay_display_manager = None
+    self._gpx_waypoint_marker_entries = []
 
     self._build_menu_bar()
     self._bind_menu_accelerators()
@@ -445,8 +456,225 @@ class MainWindow:
         text_color=_SEGMENT_NAME_MARKER_TEXT,
       )
     self._segment_label_overlay_manager.install_on_map_widget(self._map_widget)
+    self._ensure_overlay_mode_support()
     self._bind_map_widget_events()
     self._update_file_menu_state()
+
+  def _ensure_overlay_mode_support(self):
+    """Create overlay mode controls and the green overlay display manager."""
+
+    if self._map_overlay_mode_panel is not None:
+      return
+
+    self._map_overlay_mode_panel = \
+      gis_graphical_editor.map_overlay_mode_panel.MapOverlayModePanel(
+        self._map_widget,
+        self._handle_toggle_overlay_mode,
+        self._handle_push_overlay,
+        self._handle_clear_overlays,
+      )
+
+    if self._green_point_icon is None:
+      self._green_point_icon = gis_graphical_editor.map_icon_utility.create_green_point_icon()
+
+    self._map_overlay_display_manager = \
+      gis_graphical_editor.map_overlay_display_manager.MapOverlayDisplayManager(
+        self._map_widget,
+        self._green_point_icon,
+      )
+    self._update_overlay_mode_panel()
+
+  def _handle_toggle_overlay_mode(self):
+    """Enter overlay mode or export overlays and exit when the toggle is clicked."""
+
+    if self._overlay_mode_active:
+      self._exit_overlay_mode()
+    else:
+      self._enter_overlay_mode()
+
+  def _enter_overlay_mode(self):
+    """Enable map-click capture and show overlay mode controls."""
+
+    self._overlay_mode_active = True
+    self._update_overlay_mode_panel()
+
+  def _exit_overlay_mode(self):
+    """Export pushed overlays to GPX when present, then leave overlay mode."""
+
+    if self._pushed_captured_overlays:
+      gpx_description = tkinter.simpledialog.askstring(
+        "Export Overlays",
+        "GPX description:",
+        parent=self._root,
+      )
+
+      if gpx_description is None:
+        return
+
+      suggested_gpx_filename = \
+        gis_graphical_editor.overlay_mode.build_suggested_overlay_gpx_filename(gpx_description)
+      gpx_filepath = tkinter.filedialog.asksaveasfilename(
+        parent=self._root,
+        title="Save overlay GPX",
+        defaultextension=".gpx",
+        initialfile=suggested_gpx_filename,
+        filetypes=[
+          (_GPX_FILE_TYPE_LABEL, _GPX_FILE_TYPE_PATTERN),
+          (_ALL_FILE_TYPE_LABEL, _ALL_FILE_TYPE_PATTERN),
+        ],
+      )
+
+      if not gpx_filepath:
+        return
+
+      try:
+        gis_graphical_editor.overlay_mode.write_captured_overlays_to_gpx(
+          gpx_filepath,
+          gpx_description,
+          self._pushed_captured_overlays,
+        )
+      except OSError as error:
+        _LOGGER.error("failed to write overlay GPX filepath=%s", gpx_filepath, exc_info=error)
+        tkinter.messagebox.showerror(
+          "Save overlay GPX",
+          "Could not write GPX file:\n{error_message}".format(error_message=error),
+          parent=self._root,
+        )
+
+        return
+
+    self._overlay_mode_active = False
+    self._pending_overlay_locations = []
+    self._update_overlay_mode_panel()
+    self._redraw_map_overlays()
+
+  def _handle_push_overlay(self):
+    """Move the pending captured locations into the pushed overlay list."""
+
+    if not self._pending_overlay_locations:
+      return
+
+    overlay_id = tkinter.simpledialog.askstring(
+      "Push Overlay",
+      "Overlay ID:",
+      parent=self._root,
+    )
+
+    if overlay_id is None:
+      return
+
+    overlay_description = tkinter.simpledialog.askstring(
+      "Push Overlay",
+      "Overlay description:",
+      parent=self._root,
+    )
+
+    if overlay_description is None:
+      return
+
+    location_records = []
+
+    for pending_location_record in self._pending_overlay_locations:
+      location_records.append(
+        gis_graphical_editor.overlay_mode.copy_gpx_point_record(pending_location_record),
+      )
+
+    captured_overlay = gis_graphical_editor.overlay_mode.CapturedOverlay(
+      overlay_id,
+      overlay_description,
+      location_records,
+    )
+    self._pushed_captured_overlays.append(captured_overlay)
+    self._pending_overlay_locations = []
+    self._update_overlay_mode_panel()
+    self._redraw_map_overlays()
+
+  def _handle_clear_overlays(self):
+    """Remove every overlay marker, path, and stored overlay record."""
+
+    self._pushed_captured_overlays = []
+    self._pending_overlay_locations = []
+
+    if self._map_overlay_display_manager is not None:
+      self._map_overlay_display_manager.clear_display()
+
+    self._update_overlay_mode_panel()
+
+  def _update_overlay_mode_panel(self):
+    """Refresh overlay mode button states and orange status labels."""
+
+    if self._map_overlay_mode_panel is None:
+      return
+
+    self._map_overlay_mode_panel.set_overlay_mode_active(self._overlay_mode_active)
+    self._map_overlay_mode_panel.set_pushed_overlay_count(len(self._pushed_captured_overlays))
+    self._map_overlay_mode_panel.set_pending_location_count(len(self._pending_overlay_locations))
+    self._map_overlay_mode_panel.set_push_overlay_enabled(len(self._pending_overlay_locations) >= 1)
+    has_overlay_graphics = bool(self._pushed_captured_overlays) or bool(self._pending_overlay_locations)
+    self._map_overlay_mode_panel.set_clear_overlays_visible(
+      not self._overlay_mode_active and has_overlay_graphics,
+    )
+
+  def _redraw_map_overlays(self):
+    """Redraw every pushed overlay and the current pending capture session."""
+
+    if self._map_overlay_display_manager is None:
+      return
+
+    pending_location_records = self._pending_overlay_locations
+
+    if not self._overlay_mode_active:
+      pending_location_records = []
+
+    self._map_overlay_display_manager.draw_overlays(
+      self._pushed_captured_overlays,
+      pending_location_records,
+    )
+
+  def _handle_overlay_mode_map_click(self, event):
+    """Capture one map location, preserving waypoint metadata when a star is clicked."""
+
+    waypoint_location_record = self._find_gpx_waypoint_at_canvas_position(event.x, event.y)
+
+    if waypoint_location_record is not None:
+      location_record = gis_graphical_editor.overlay_mode.copy_gpx_point_record(
+        waypoint_location_record,
+      )
+    else:
+      latitude, longitude = self._map_widget.convert_canvas_coords_to_decimal_coords(
+        event.x,
+        event.y,
+      )
+      location_record = gis_graphical_editor.gpx_utility.GpxPointRecord(
+        latitude,
+        longitude,
+        None,
+        {},
+      )
+
+    self._pending_overlay_locations.append(location_record)
+    self._update_overlay_mode_panel()
+    self._redraw_map_overlays()
+
+    return "break"
+
+  def _find_gpx_waypoint_at_canvas_position(self, canvas_x, canvas_y):
+    """Return the nearest GPX waypoint within the click threshold, if any."""
+
+    closest_waypoint_record = None
+    closest_distance_squared = _WAYPOINT_CLICK_PIXEL_THRESHOLD * _WAYPOINT_CLICK_PIXEL_THRESHOLD
+
+    for map_marker, gpx_waypoint_record in self._gpx_waypoint_marker_entries:
+      marker_canvas_x, marker_canvas_y = map_marker.get_canvas_pos(map_marker.position)
+      delta_x = marker_canvas_x - canvas_x
+      delta_y = marker_canvas_y - canvas_y
+      distance_squared = delta_x * delta_x + delta_y * delta_y
+
+      if distance_squared <= closest_distance_squared:
+        closest_distance_squared = distance_squared
+        closest_waypoint_record = gpx_waypoint_record
+
+    return closest_waypoint_record
 
   def _bind_map_widget_events(self):
     """Replace tkintermapview canvas bindings so ctrl+click can zoom out."""
@@ -470,7 +698,10 @@ class MainWindow:
     map_canvas.bind("<Double-Button-1>", self._handle_map_double_click)
 
   def _handle_map_canvas_button_one(self, event):
-    """Zoom out on ctrl+click or start a map pan for a normal left click."""
+    """Capture overlay clicks, zoom out on ctrl+click, or start a map pan."""
+
+    if self._overlay_mode_active:
+      return self._handle_overlay_mode_map_click(event)
 
     if self._is_control_modifier_active_for_map_event(event):
       return self._handle_map_control_zoom_event(event, -1)
@@ -617,6 +848,12 @@ class MainWindow:
     self._star_waypoint_icon = None
     self._slider_pointer_icon = None
     self._segment_label_overlay_manager = None
+    self._map_overlay_mode_panel = None
+    self._map_overlay_display_manager = None
+    self._overlay_mode_active = False
+    self._pending_overlay_locations = []
+    self._pushed_captured_overlays = []
+    self._gpx_waypoint_marker_entries = []
     self._slider_position_marker = None
     self._loaded_gpx_points = None
     self._loaded_gpx_segments = None
@@ -997,6 +1234,8 @@ class MainWindow:
 
     if self._loaded_gpx_waypoints:
       self._display_gpx_waypoints(self._loaded_gpx_waypoints)
+
+    self._redraw_map_overlays()
 
     # Fit the map after the slider and sidebar layout have their final dimensions.
     self._setup_time_slider_if_needed(visible_gpx_points)
@@ -1432,6 +1671,8 @@ class MainWindow:
     if self._star_waypoint_icon is None:
       self._star_waypoint_icon = gis_graphical_editor.map_icon_utility.create_star_waypoint_icon()
 
+    self._gpx_waypoint_marker_entries = []
+
     for gpx_waypoint in gpx_waypoints:
       map_marker = self._map_widget.set_marker(
         gpx_waypoint.latitude,
@@ -1439,6 +1680,7 @@ class MainWindow:
         icon=self._star_waypoint_icon,
         icon_anchor="center",
       )
+      self._gpx_waypoint_marker_entries.append((map_marker, gpx_waypoint))
       waypoint_tooltip_text = \
         gis_graphical_editor.gpx_utility.build_gpx_waypoint_tooltip_text(gpx_waypoint)
       gis_graphical_editor.map_marker_tooltip_utility.schedule_bind_map_marker_tooltip(

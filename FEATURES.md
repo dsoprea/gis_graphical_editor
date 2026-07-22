@@ -39,6 +39,7 @@ Complete catalog of GIS Graphical Editor (`gge`) capabilities, including map dis
 - **Auto framing**: after each load, the map fits a bounding box around the track (max/min latitude and longitude).
 - **Double-click zoom**: double-clicking the map canvas increases zoom by one level, centered on the click position.
 - **Ctrl+click zoom out**: Ctrl+clicking the map canvas decreases zoom by one level, centered on the click position (does not start a pan).
+- **Overlay mode**: **Enter Overlay Mode** below the zoom controls captures map clicks as green dots and connecting green segments; **Push Overlay** stores pending locations as named overlays; **Exit Overlay Mode** exports pushed overlays to GPX and **Clear Overlays** removes retained overlay graphics after exit.
 - **Close track**: **File → Close** (Ctrl+W) clears paths, markers, and removes the map widget. The menu item is disabled until a track is loaded.
 
 ## Time slider and track animation
@@ -139,6 +140,16 @@ Complete catalog of GIS Graphical Editor (`gge`) capabilities, including map dis
 
 - **Gold star** at every standalone `<wpt>` coordinate, drawn even when the file also contains track segments.
 - **Tooltip** on hover when the waypoint has a nonempty `name` field.
+
+## Overlay mode
+
+- **Enter Overlay Mode** button below the map zoom controls toggles capture mode; the label becomes **Exit Overlay Mode**.
+- **Map clicks** in overlay mode add green dots at each captured location; two or more locations in the current session are connected with green segments.
+- **Waypoint capture**: clicking a gold star waypoint stores that waypoint’s name and GPX metadata on the captured location.
+- **Push Overlay** (enabled when at least one location is captured) prompts for an overlay ID and description, moves pending locations into the overlay list, and clears the pending session while retaining green markers and segments on the map.
+- **Status labels** in the upper-right corner (large, bold, orange) show `N Captured Overlays` while overlay mode is active, and `N Selected Locations` when one or more locations are pending.
+- **Exit Overlay Mode** prompts for a GPX description, writes every pushed overlay as its own `<trkseg>` (each location is a `<trkpt>` with waypoint metadata preserved), and opens a save dialog with suggested filename `YYYYmmdd-HHMMSS_DESCRIPTION.gpx` (spaces and filename-unsafe characters in the description become underscores).
+- **Clear Overlays** appears below **Enter Overlay Mode** after exiting overlay mode when overlay graphics remain; it removes all overlay dots, segments, and stored overlay records.
 
 ## Marker appearance
 
