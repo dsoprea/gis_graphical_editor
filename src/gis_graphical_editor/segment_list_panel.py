@@ -55,6 +55,7 @@ class SegmentListPanel(tkinter.Frame):
     self.pack_propagate(False)
     self._build_widgets(segment_labels)
     self._populate_segment_checkbuttons(segment_labels)
+    self._refresh_selection_button_states()
 
   def get_selected_gpx_points(self):
     """Return flattened GPX points for every checked segment."""
@@ -188,6 +189,8 @@ class SegmentListPanel(tkinter.Frame):
       if first_point_id in unchecked_first_point_ids:
         selection_variable.set(False)
 
+    self._refresh_selection_button_states()
+
   def _build_widgets(self, segment_labels):
     """Lay out a titled scrollable frame of segment checkbuttons."""
 
@@ -220,6 +223,25 @@ class SegmentListPanel(tkinter.Frame):
       state=tkinter.DISABLED,
     )
     self._split_button.pack(side=tkinter.RIGHT)
+
+    selection_row = tkinter.Frame(self)
+    selection_row.pack(side=tkinter.TOP, fill=tkinter.X, padx=8, pady=(0, 4))
+
+    self._select_none_button = tkinter.Button(
+      selection_row,
+      text="Select None",
+      command=self._handle_select_none_button_clicked,
+      state=tkinter.DISABLED,
+    )
+    self._select_none_button.pack(side=tkinter.RIGHT)
+
+    self._select_all_button = tkinter.Button(
+      selection_row,
+      text="Select All",
+      command=self._handle_select_all_button_clicked,
+      state=tkinter.DISABLED,
+    )
+    self._select_all_button.pack(side=tkinter.RIGHT, padx=(0, 4))
 
     list_container = tkinter.Frame(self)
     list_container.pack(fill=tkinter.BOTH, expand=True, padx=8, pady=(0, 8))
@@ -277,7 +299,51 @@ class SegmentListPanel(tkinter.Frame):
   def _handle_selection_changed(self):
     """Notify the main window when the visible segment set changes."""
 
+    self._refresh_selection_button_states()
     self._on_selection_changed()
+
+  def _handle_select_all_button_clicked(self):
+    """Check every segment checkbox and refresh the visible track."""
+
+    for selection_variable in self._selection_variables:
+      selection_variable.set(True)
+
+    self._refresh_selection_button_states()
+    self._on_selection_changed()
+
+  def _handle_select_none_button_clicked(self):
+    """Clear every segment checkbox and refresh the visible track."""
+
+    for selection_variable in self._selection_variables:
+      selection_variable.set(False)
+
+    self._refresh_selection_button_states()
+    self._on_selection_changed()
+
+  def _refresh_selection_button_states(self):
+    """Enable Select All only when some segments are unchecked, and the reverse."""
+
+    has_checked_segment = False
+    has_unchecked_segment = False
+
+    for selection_variable in self._selection_variables:
+      if selection_variable.get():
+        has_checked_segment = True
+      else:
+        has_unchecked_segment = True
+
+    if has_unchecked_segment:
+      select_all_button_state = tkinter.NORMAL
+    else:
+      select_all_button_state = tkinter.DISABLED
+
+    if has_checked_segment:
+      select_none_button_state = tkinter.NORMAL
+    else:
+      select_none_button_state = tkinter.DISABLED
+
+    self._select_all_button.config(state=select_all_button_state)
+    self._select_none_button.config(state=select_none_button_state)
 
   def _handle_split_button_clicked(self):
     """Notify the main window when the user requests a segment split."""

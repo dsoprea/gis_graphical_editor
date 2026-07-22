@@ -78,6 +78,7 @@ Complete catalog of GIS Graphical Editor (`gge`) capabilities, including map dis
 - **Split** — divide the highlighted segment at the slider’s nearest GPX point into head and tail segments. Disabled at segment endpoints or when no segment context is available.
 - **Delete** — remove the highlighted segment after a confirmation dialog describing its timestamp span and point count.
 - **Undo** — restore the segment structure and checkbox state from before the most recent split or delete (one level; disabled until an edit has been made).
+- **Select All** / **Select None** — below Split, Delete, and Undo; check or clear every segment checkbox. Each button is enabled only when its action would change the current selection.
 - **`--no-idle`** at launch excludes segments whose average velocity is below 1 mph (2 kph when `--metric`) from the checklist entirely.
 
 ## GPX export
