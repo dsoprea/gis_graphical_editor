@@ -235,11 +235,13 @@ class SegmentListPanel(tkinter.Frame):
     )
     self._split_button.pack(side=tkinter.RIGHT)
 
-    selection_row = tkinter.Frame(self)
-    selection_row.pack(side=tkinter.TOP, fill=tkinter.X, padx=8, pady=(0, 4))
+    # Visual gap between bulk-selection buttons and segment edit actions.
+    button_group_gap = tkinter.Frame(header_row, width=12)
+    button_group_gap.pack(side=tkinter.RIGHT)
+    button_group_gap.pack_propagate(False)
 
     self._select_none_button = tkinter.Button(
-      selection_row,
+      header_row,
       text="Select None",
       command=self._handle_select_none_button_clicked,
       state=tkinter.DISABLED,
@@ -247,12 +249,12 @@ class SegmentListPanel(tkinter.Frame):
     self._select_none_button.pack(side=tkinter.RIGHT)
 
     self._select_all_button = tkinter.Button(
-      selection_row,
+      header_row,
       text="Select All",
       command=self._handle_select_all_button_clicked,
       state=tkinter.DISABLED,
     )
-    self._select_all_button.pack(side=tkinter.RIGHT, padx=(0, 4))
+    self._select_all_button.pack(side=tkinter.RIGHT)
 
     list_container = tkinter.Frame(self)
     list_container.pack(fill=tkinter.BOTH, expand=True, padx=8, pady=(0, 8))
