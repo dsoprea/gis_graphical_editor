@@ -48,7 +48,7 @@ Complete catalog of GIS Graphical Editor (`gge`) capabilities, including map dis
 ![Time slider at a mid-track point with the red position marker on the map](asset/documentation/image/track-time-slider-midpoint.png)
 
 - **Requires timestamps** on the loaded GPX; omitted when the file has no timed points.
-- **Horizontal slider** above the map spanning earliest to latest track timestamp, with endpoint labels showing date, time, and timezone when available.
+- **Horizontal slider** above the map spanning earliest to latest track timestamp, with endpoint labels showing date, time, and timezone when available. The slider sits in a dedicated container; the map column cannot shrink narrower than that container.
 - **Current position label** under the slider shows the selected timestamp plus point index within the current segment and across all visible timed points, e.g. `(Current: 1 of 29, All: 1 of 29)`.
 - **Playback controls**:
   - **Reverse play** — auto-step backward through timed points every 250 ms until the first point; click again to stop.

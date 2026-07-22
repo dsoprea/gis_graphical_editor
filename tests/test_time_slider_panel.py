@@ -1,7 +1,10 @@
 """Tests for time_slider_panel timestamp label formatting."""
 
 import datetime
+import tkinter
 
+import gis_graphical_editor.gpx_utility
+import gis_graphical_editor.track_analysis
 import gis_graphical_editor.time_slider_panel
 
 
@@ -75,3 +78,46 @@ def test_clamp_selected_seconds_clamps_after_latest():
   )
 
   assert clamped_seconds == latest_timestamp.timestamp()
+
+
+def test_time_slider_panel_inside_container_has_minimum_animation_width():
+  root = tkinter.Tk()
+  root.withdraw()
+  map_column_frame = tkinter.Frame(root)
+  map_column_frame.pack()
+  time_slider_container_frame = tkinter.Frame(map_column_frame)
+  time_slider_container_frame.pack(side=tkinter.TOP, fill=tkinter.X)
+  earliest_timestamp = datetime.datetime(2024, 6, 1, 8, 0, 0, tzinfo=datetime.timezone.utc)
+  latest_timestamp = datetime.datetime(2026, 12, 31, 23, 59, 59, tzinfo=datetime.timezone.utc)
+  first_gpx_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    40.0,
+    -105.0,
+    earliest_timestamp,
+  )
+  second_gpx_point = gis_graphical_editor.gpx_utility.GpxPointRecord(
+    40.1,
+    -105.1,
+    latest_timestamp,
+  )
+  timed_gpx_points = [first_gpx_point, second_gpx_point]
+  segment_summaries = [
+    gis_graphical_editor.track_analysis.TrackSegmentSummary(
+      timed_gpx_points,
+      earliest_timestamp,
+      latest_timestamp,
+    ),
+  ]
+  time_slider_panel = gis_graphical_editor.time_slider_panel.TimeSliderPanel(
+    time_slider_container_frame,
+    earliest_timestamp,
+    latest_timestamp,
+    timed_gpx_points,
+    lambda selected_timestamp: None,
+    segment_summaries,
+  )
+  time_slider_panel.pack(side=tkinter.TOP, fill=tkinter.X)
+  time_slider_container_frame.update_idletasks()
+  animation_container_minimum_width = time_slider_container_frame.winfo_reqwidth()
+  root.destroy()
+
+  assert animation_container_minimum_width >= 500

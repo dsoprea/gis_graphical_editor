@@ -74,6 +74,7 @@ class MainWindow:
     self._slider_pointer_icon = None
     self._segment_label_overlay_manager = None
     self._time_slider_panel = None
+    self._time_slider_container_frame = None
     self._segment_list_panel = None
     self._right_sidebar_drawer = None
     self._right_sidebar_frame = None
@@ -778,16 +779,49 @@ class MainWindow:
   def _remove_time_slider_panel(self):
     """Destroy the optional time slider panel when unloading a track."""
 
-    if self._time_slider_panel is None:
-      return
+    if self._time_slider_panel is not None:
+      self._time_slider_panel.pack_forget()
+      self._time_slider_panel.destroy()
+      self._time_slider_panel = None
 
-    self._time_slider_panel.pack_forget()
-    self._time_slider_panel.destroy()
-    self._time_slider_panel = None
+    if self._time_slider_container_frame is not None:
+      self._time_slider_container_frame.pack_forget()
+      self._time_slider_container_frame.destroy()
+      self._time_slider_container_frame = None
+
+    self._sync_map_column_minimum_width()
     self._remove_track_metadata_panel()
 
     if self._segment_list_panel is not None:
       self._segment_list_panel.set_highlighted_segment_index(None)
+
+  def _ensure_time_slider_container_frame(self):
+    """Create the frame that wraps the animation controls above the map."""
+
+    if self._time_slider_container_frame is not None:
+      return
+
+    self._time_slider_container_frame = tkinter.Frame(self._map_column_frame)
+    self._time_slider_container_frame.pack(
+      side=tkinter.TOP,
+      fill=tkinter.X,
+      before=self._map_widget,
+    )
+
+  def _sync_map_column_minimum_width(self):
+    """Keep the map column at least as wide as the animation control container."""
+
+    if self._time_slider_container_frame is None:
+      map_column_minimum_width = 0
+    else:
+      self._time_slider_container_frame.update_idletasks()
+      map_column_minimum_width = self._time_slider_container_frame.winfo_reqwidth()
+
+    self._main_frame.grid_columnconfigure(
+      0,
+      weight=1,
+      minsize=map_column_minimum_width,
+    )
 
   def _remove_map_widget(self):
     """Tear down the map, slider, cached icons, and loaded point data."""
@@ -1385,6 +1419,7 @@ class MainWindow:
         segment_summaries,
       )
       self._setup_track_metadata_panel_if_needed(gpx_points)
+      self._sync_map_column_minimum_width()
 
       if self._last_slider_timestamp is not None:
         self._time_slider_panel.set_selected_timestamp(self._last_slider_timestamp)
@@ -1393,15 +1428,17 @@ class MainWindow:
 
       return
 
+    self._ensure_time_slider_container_frame()
     self._time_slider_panel = gis_graphical_editor.time_slider_panel.TimeSliderPanel(
-      self._map_column_frame,
+      self._time_slider_container_frame,
       earliest_timestamp,
       latest_timestamp,
       timed_gpx_points,
       self._handle_slider_timestamp_changed,
       segment_summaries,
     )
-    self._time_slider_panel.pack(side=tkinter.TOP, fill=tkinter.X, before=self._map_widget)
+    self._time_slider_panel.pack(side=tkinter.TOP, fill=tkinter.X)
+    self._sync_map_column_minimum_width()
     self._setup_track_metadata_panel_if_needed(gpx_points)
 
     if self._last_slider_timestamp is not None:
