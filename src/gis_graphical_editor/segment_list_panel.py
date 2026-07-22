@@ -7,9 +7,21 @@ import gis_graphical_editor.track_analysis
 
 
 _CHECKBUTTON_EXTRA_WIDTH = 30
+_INFO_BUTTON_EXTRA_WIDTH = 28
+_INFO_CANVAS_SIZE = 22
+_INFO_CIRCLE_FILL = "#dcdcdc"
+_INFO_CIRCLE_OUTLINE = "#c8c8c8"
+_INFO_GLYPH_COLOR = "#333333"
+_SEGMENT_ROW_BORDER_COLOR = "#c0c0c0"
+_SEGMENT_ROW_BORDER_WIDTH = 1
+_SEGMENT_INFORMATION_BUTTON_TEXT = "\u2139"
+_SEGMENT_INFORMATION_POPUP_TITLE = "Segment Information"
+_SEGMENT_INFORMATION_POPUP_TEXT_WIDTH = 56
+_LIST_CONTAINER_HORIZONTAL_PADDING = 16
+_LIST_SCROLLBAR_WIDTH = 18
+_SEGMENT_ROW_HORIZONTAL_PADDING = 8
 _PANEL_HORIZONTAL_PADDING = 24
 _MIN_PANEL_WIDTH = 400
-_PANEL_WIDTH_FRACTION = 0.9
 _INNER_LIST_BACKGROUND = "#f5f5f5"
 _CURRENT_SEGMENT_BACKGROUND = "#c8c8c8"
 
@@ -51,7 +63,12 @@ class SegmentListPanel(tkinter.Frame):
     self._on_undo_requested = on_undo_requested
     self._selection_variables = []
     self._segment_checkbuttons = []
+    self._segment_row_frames = []
+    self._segment_info_canvases = []
+    self._segment_checkbox_canvas_window = None
     self._panel_width = panel_width
+    self._use_metric_units = use_metric_units
+    self._exclude_idle_segments = exclude_idle_segments
     self.pack_propagate(False)
     self._build_widgets(segment_labels)
     self._populate_segment_checkbuttons(segment_labels)
@@ -94,31 +111,25 @@ class SegmentListPanel(tkinter.Frame):
 
     self._panel_width = panel_width
     self.config(width=panel_width)
-    label_wraplength = _compute_segment_label_wraplength(panel_width)
-
-    for segment_checkbutton in self._segment_checkbuttons:
-      segment_checkbutton.config(wraplength=label_wraplength)
+    self._sync_segment_row_wraplengths()
 
   def set_highlighted_segment_index(self, segment_index):
     """Paint one row darker gray when the slider is on that segment, else light gray."""
 
     # Reset every row to the default inner-list background.
-    for segment_checkbutton in self._segment_checkbuttons:
-      segment_checkbutton.config(
-        bg=_INNER_LIST_BACKGROUND,
-        activebackground=_INNER_LIST_BACKGROUND,
-      )
+    for segment_row_frame in self._segment_row_frames:
+      self._apply_segment_row_background(segment_row_frame, _INNER_LIST_BACKGROUND)
 
     if segment_index is None:
       return
 
-    if segment_index < 0 or segment_index >= len(self._segment_checkbuttons):
+    if segment_index < 0 or segment_index >= len(self._segment_row_frames):
       return
 
-    highlighted_checkbutton = self._segment_checkbuttons[segment_index]
-    highlighted_checkbutton.config(
-      bg=_CURRENT_SEGMENT_BACKGROUND,
-      activebackground=_CURRENT_SEGMENT_BACKGROUND,
+    highlighted_segment_row_frame = self._segment_row_frames[segment_index]
+    self._apply_segment_row_background(
+      highlighted_segment_row_frame,
+      _CURRENT_SEGMENT_BACKGROUND,
     )
     self._scroll_segment_index_into_view(segment_index)
 
@@ -259,7 +270,7 @@ class SegmentListPanel(tkinter.Frame):
     scrollbar.config(command=self._segment_canvas.yview)
 
     self._segment_checkbox_frame = tkinter.Frame(self._segment_canvas, bg=_INNER_LIST_BACKGROUND)
-    canvas_window = self._segment_canvas.create_window(
+    self._segment_checkbox_canvas_window = self._segment_canvas.create_window(
       (0, 0),
       window=self._segment_checkbox_frame,
       anchor=tkinter.NW,
@@ -269,21 +280,41 @@ class SegmentListPanel(tkinter.Frame):
       self._segment_canvas.configure(scrollregion=self._segment_canvas.bbox(tkinter.ALL))
 
     def _handle_canvas_configure(event):
-      self._segment_canvas.itemconfigure(canvas_window, width=event.width)
+      self._sync_segment_row_wraplengths(list_canvas_width=event.width)
 
     self._segment_checkbox_frame.bind("<Configure>", _handle_checkbox_frame_configure)
     self._segment_canvas.bind("<Configure>", _handle_canvas_configure)
 
   def _populate_segment_checkbuttons(self, segment_labels):
-    """Create one checked checkbutton per segment label."""
+    """Create one checked checkbutton and info icon per segment label."""
 
     label_wraplength = _compute_segment_label_wraplength(self._panel_width)
 
-    for segment_label in segment_labels:
+    for segment_index, segment_label in enumerate(segment_labels):
       selection_variable = tkinter.BooleanVar(value=True)
       self._selection_variables.append(selection_variable)
-      segment_checkbutton = tkinter.Checkbutton(
+      segment_row_outer = tkinter.Frame(
         self._segment_checkbox_frame,
+        bg=_SEGMENT_ROW_BORDER_COLOR,
+        highlightthickness=0,
+        bd=0,
+      )
+      segment_row_outer.pack(fill=tkinter.X, expand=True, anchor=tkinter.W)
+      self._segment_row_frames.append(segment_row_outer)
+      segment_row_inner = tkinter.Frame(
+        segment_row_outer,
+        bg=_INNER_LIST_BACKGROUND,
+        highlightthickness=0,
+        bd=0,
+      )
+      segment_row_inner.pack(
+        fill=tkinter.X,
+        expand=True,
+        padx=(_SEGMENT_ROW_BORDER_WIDTH, 0),
+        pady=(_SEGMENT_ROW_BORDER_WIDTH, _SEGMENT_ROW_BORDER_WIDTH),
+      )
+      segment_checkbutton = tkinter.Checkbutton(
+        segment_row_inner,
         text=segment_label,
         variable=selection_variable,
         anchor=tkinter.W,
@@ -291,10 +322,149 @@ class SegmentListPanel(tkinter.Frame):
         wraplength=label_wraplength,
         bg=_INNER_LIST_BACKGROUND,
         activebackground=_INNER_LIST_BACKGROUND,
+        highlightthickness=0,
+        bd=0,
         command=self._handle_selection_changed,
       )
-      segment_checkbutton.pack(fill=tkinter.X, anchor=tkinter.W)
+      segment_checkbutton.pack(side=tkinter.LEFT, fill=tkinter.X, expand=True, anchor=tkinter.W)
       self._segment_checkbuttons.append(segment_checkbutton)
+      segment_info_canvas = self._create_segment_information_canvas(
+        segment_row_inner,
+        segment_index,
+        _INNER_LIST_BACKGROUND,
+      )
+      segment_info_canvas.pack(side=tkinter.RIGHT, anchor=tkinter.E, padx=(4, 2))
+      self._segment_info_canvases.append(segment_info_canvas)
+
+    self._sync_segment_row_wraplengths()
+
+  def _create_segment_information_canvas(self, segment_row_frame, segment_index, background_color):
+    """Return a canvas with a circular info glyph that opens the segment popup."""
+
+    info_canvas = tkinter.Canvas(
+      segment_row_frame,
+      width=_INFO_CANVAS_SIZE,
+      height=_INFO_CANVAS_SIZE,
+      highlightthickness=0,
+      bd=0,
+      bg=background_color,
+      cursor="hand2",
+    )
+    circle_margin = 2
+    info_canvas.create_oval(
+      circle_margin,
+      circle_margin,
+      _INFO_CANVAS_SIZE - circle_margin,
+      _INFO_CANVAS_SIZE - circle_margin,
+      fill=_INFO_CIRCLE_FILL,
+      outline=_INFO_CIRCLE_OUTLINE,
+      width=1,
+    )
+    info_canvas.create_text(
+      _INFO_CANVAS_SIZE / 2,
+      _INFO_CANVAS_SIZE / 2,
+      text=_SEGMENT_INFORMATION_BUTTON_TEXT,
+      fill=_INFO_GLYPH_COLOR,
+    )
+    info_canvas.bind(
+      "<Button-1>",
+      self._build_segment_information_canvas_click_handler(segment_index),
+    )
+
+    return info_canvas
+
+  def _build_segment_information_canvas_click_handler(self, segment_index):
+    """Return a canvas click handler that opens the metadata popup for segment_index."""
+
+    def handle_segment_information_canvas_clicked(event):
+      self._show_segment_information_popup(segment_index)
+
+    return handle_segment_information_canvas_clicked
+
+  def _show_segment_information_popup(self, segment_index):
+    """Display segment summary metadata in a popup for one checklist row."""
+
+    segment_summary = self._segment_summaries[segment_index]
+    metadata_lines = \
+      gis_graphical_editor.track_analysis.format_segment_summary_metadata_lines(
+        segment_summary,
+        self._use_metric_units,
+      )
+    popup_window = tkinter.Toplevel(self.winfo_toplevel())
+    popup_window.title(_SEGMENT_INFORMATION_POPUP_TITLE)
+    popup_window.transient(self.winfo_toplevel())
+    popup_body = "\n".join(metadata_lines)
+    metadata_text = tkinter.Text(
+      popup_window,
+      wrap=tkinter.WORD,
+      height=min(len(metadata_lines), 12),
+      width=_SEGMENT_INFORMATION_POPUP_TEXT_WIDTH,
+    )
+    metadata_text.insert(tkinter.END, popup_body)
+    metadata_text.config(state=tkinter.DISABLED)
+    metadata_text.pack(padx=8, pady=8)
+    close_button = tkinter.Button(
+      popup_window,
+      text="Close",
+      command=popup_window.destroy,
+      default=tkinter.ACTIVE,
+    )
+    close_button.pack(pady=(0, 8))
+    popup_window.bind("<Return>", lambda event: popup_window.destroy())
+    popup_window.bind("<Escape>", lambda event: popup_window.destroy())
+
+    def focus_close_button():
+      popup_window.lift()
+      popup_window.grab_set()
+      popup_window.focus_force()
+      close_button.focus_set()
+      close_button.focus_force()
+
+    popup_window.update_idletasks()
+    popup_window.wait_visibility()
+    popup_window.after_idle(focus_close_button)
+
+  def _apply_segment_row_background(self, segment_row_outer, background_color):
+    """Set one segment row inner fill and its child widgets to background_color."""
+
+    for child_widget in segment_row_outer.winfo_children():
+      widget_class_name = child_widget.winfo_class()
+
+      if widget_class_name != "Frame":
+        continue
+
+      child_widget.config(bg=background_color)
+
+      for nested_widget in child_widget.winfo_children():
+        nested_widget_class_name = nested_widget.winfo_class()
+
+        if nested_widget_class_name == "Checkbutton":
+          nested_widget.config(
+            bg=background_color,
+            activebackground=background_color,
+          )
+        elif nested_widget_class_name == "Canvas":
+          nested_widget.config(bg=background_color)
+
+  def _sync_segment_row_wraplengths(self, list_canvas_width=None):
+    """Resize the embedded list frame and rewrap labels to the canvas width."""
+
+    if list_canvas_width is None:
+      list_canvas_width = self._segment_canvas.winfo_width()
+
+    if list_canvas_width <= 1:
+      list_canvas_width = _compute_fallback_list_canvas_width(self._panel_width)
+
+    if self._segment_checkbox_canvas_window is not None:
+      self._segment_canvas.itemconfigure(
+        self._segment_checkbox_canvas_window,
+        width=list_canvas_width,
+      )
+
+    label_wraplength = _compute_segment_label_wraplength_for_list_canvas_width(list_canvas_width)
+
+    for segment_checkbutton in self._segment_checkbuttons:
+      segment_checkbutton.config(wraplength=label_wraplength)
 
   def _handle_selection_changed(self):
     """Notify the main window when the visible segment set changes."""
@@ -363,10 +533,10 @@ class SegmentListPanel(tkinter.Frame):
   def _scroll_segment_index_into_view(self, segment_index):
     """Scroll the checklist canvas so the highlighted segment row is visible."""
 
-    highlighted_checkbutton = self._segment_checkbuttons[segment_index]
+    highlighted_segment_row_frame = self._segment_row_frames[segment_index]
     self._segment_checkbox_frame.update_idletasks()
-    checkbutton_top = highlighted_checkbutton.winfo_y()
-    checkbutton_bottom = checkbutton_top + highlighted_checkbutton.winfo_height()
+    row_top = highlighted_segment_row_frame.winfo_y()
+    row_bottom = row_top + highlighted_segment_row_frame.winfo_height()
     frame_height = self._segment_checkbox_frame.winfo_height()
     canvas_height = self._segment_canvas.winfo_height()
 
@@ -378,10 +548,10 @@ class SegmentListPanel(tkinter.Frame):
     visible_top = top_scroll_fraction * frame_height
     visible_bottom = bottom_scroll_fraction * frame_height
 
-    if checkbutton_top >= visible_top and checkbutton_bottom <= visible_bottom:
+    if row_top >= visible_top and row_bottom <= visible_bottom:
       return
 
-    scroll_fraction = checkbutton_top / frame_height
+    scroll_fraction = row_top / frame_height
 
     if scroll_fraction < 0:
       scroll_fraction = 0
@@ -407,22 +577,55 @@ def compute_panel_width(segment_labels):
       if label_width > widest_label_width:
         widest_label_width = label_width
 
-  panel_width = widest_label_width + _CHECKBUTTON_EXTRA_WIDTH + _PANEL_HORIZONTAL_PADDING
+  panel_width = \
+    widest_label_width \
+    + _CHECKBUTTON_EXTRA_WIDTH \
+    + _INFO_BUTTON_EXTRA_WIDTH \
+    + _SEGMENT_ROW_BORDER_WIDTH \
+    + _SEGMENT_ROW_HORIZONTAL_PADDING \
+    + _LIST_CONTAINER_HORIZONTAL_PADDING \
+    + _LIST_SCROLLBAR_WIDTH \
+    + _PANEL_HORIZONTAL_PADDING
 
   if panel_width < _MIN_PANEL_WIDTH:
     panel_width = _MIN_PANEL_WIDTH
 
-  panel_width = int(panel_width * _PANEL_WIDTH_FRACTION)
-
   return panel_width
 
 
-def _compute_segment_label_wraplength(panel_width):
-  """Return a Checkbutton wraplength that fits panel_width."""
+def _compute_fallback_list_canvas_width(panel_width):
+  """Return the list canvas width implied by panel_width before the canvas is mapped."""
 
-  label_wraplength = panel_width - _CHECKBUTTON_EXTRA_WIDTH - 16
+  list_canvas_width = \
+    panel_width \
+    - _LIST_CONTAINER_HORIZONTAL_PADDING \
+    - _LIST_SCROLLBAR_WIDTH
+
+  if list_canvas_width < 80:
+    list_canvas_width = 80
+
+  return list_canvas_width
+
+
+def _compute_segment_label_wraplength_for_list_canvas_width(list_canvas_width):
+  """Return a Checkbutton wraplength that fits list_canvas_width."""
+
+  label_wraplength = \
+    list_canvas_width \
+    - _CHECKBUTTON_EXTRA_WIDTH \
+    - _INFO_BUTTON_EXTRA_WIDTH \
+    - _SEGMENT_ROW_BORDER_WIDTH \
+    - _SEGMENT_ROW_HORIZONTAL_PADDING
 
   if label_wraplength < 80:
     label_wraplength = 80
 
   return label_wraplength
+
+
+def _compute_segment_label_wraplength(panel_width):
+  """Return a Checkbutton wraplength that fits panel_width."""
+
+  list_canvas_width = _compute_fallback_list_canvas_width(panel_width)
+
+  return _compute_segment_label_wraplength_for_list_canvas_width(list_canvas_width)

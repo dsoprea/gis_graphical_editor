@@ -1,4 +1,4 @@
-"""Read-only point and segment metadata boxes for the right sidebar."""
+"""Read-only point metadata box for the right sidebar."""
 
 import tkinter
 import tkinter.font
@@ -7,10 +7,10 @@ _METADATA_BOX_HEIGHT = 8
 
 
 class TrackMetadataPanel(tkinter.Frame):
-  """Stacked point and segment metadata readouts above the segment checklist."""
+  """Point metadata readout above the segment checklist."""
 
   def __init__(self, master, panel_width):
-    """Build scrollable point and segment metadata boxes at panel_width."""
+    """Build a scrollable point metadata box at panel_width."""
 
     super().__init__(master, width=panel_width)
 
@@ -26,27 +26,20 @@ class TrackMetadataPanel(tkinter.Frame):
 
     self._set_metadata_text(self._point_metadata_text, metadata_lines)
 
-  def set_segment_metadata(self, metadata_lines):
-    """Replace the segment metadata text with metadata_lines joined by newlines."""
-
-    self._set_metadata_text(self._segment_metadata_text, metadata_lines)
-
   def clear(self):
-    """Empty both metadata boxes."""
+    """Empty the point metadata box."""
 
     self.set_point_metadata([])
-    self.set_segment_metadata([])
 
   def set_panel_width(self, panel_width):
-    """Resize the metadata panel and its text boxes to panel_width."""
+    """Resize the metadata panel and its text box to panel_width."""
 
     self.config(width=panel_width)
     metadata_text_width = _compute_metadata_text_width(panel_width)
     self._point_metadata_text.config(width=metadata_text_width)
-    self._segment_metadata_text.config(width=metadata_text_width)
 
   def _build_widgets(self, panel_width):
-    """Lay out titled scrollable text boxes for point and segment metadata."""
+    """Lay out a titled scrollable text box for point metadata."""
 
     metadata_text_width = _compute_metadata_text_width(panel_width)
 
@@ -55,12 +48,6 @@ class TrackMetadataPanel(tkinter.Frame):
         "Current Point",
         metadata_text_width,
         top_padding=(8, 0),
-      )
-    self._segment_metadata_text = \
-      self._build_metadata_section(
-        "Current Segment",
-        metadata_text_width,
-        top_padding=0,
       )
 
   def _build_metadata_section(self, section_title, metadata_text_width, top_padding):

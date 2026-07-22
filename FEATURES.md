@@ -61,11 +61,10 @@ Complete catalog of GIS Graphical Editor (`gge`) capabilities, including map dis
 
 ## Track metadata panel
 
-![Current Point and Current Segment metadata boxes in the right sidebar](asset/documentation/image/track-metadata-panel.png)
+![Current Point metadata box in the right sidebar](asset/documentation/image/track-metadata-panel.png)
 
 - **Requires timestamps**; shown in the right sidebar above the segment list when the time slider is available.
 - **Current Point** read-only box lists latitude, longitude, timestamp, and any GPX fields present on the nearest timed point (elevation, speed, course, and similar metadata).
-- **Current Segment** read-only box lists point count, path distance, earliest and latest timestamps, elapsed interval, average velocity, and idle status for the segment containing the slider position.
 - **Live updates** as the slider moves, segment visibility changes, or segment edits refresh the track.
 
 ## Segment list and editing
@@ -75,6 +74,7 @@ Complete catalog of GIS Graphical Editor (`gge`) capabilities, including map dis
 - **Requires timestamps**; scrollable checklist in the right sidebar listing every loaded segment sorted by earliest timestamp.
 - **Segment labels** summarize start/end timestamps (with day of week when dated), point count, elapsed interval, path distance, and min/avg/max velocity; idle legs can be omitted from velocity stats when `--no-idle` is set at launch.
 - **Visibility checkboxes** control which segments contribute to the drawn path, overlays, slider, and metadata; unchecked segments remain in memory and in **Save As** export.
+- **Information icon** (ℹ) on each segment row opens a popup with that segment’s point count, path distance, timestamps, elapsed interval, average velocity, and idle status.
 - **Split** — divide the highlighted segment at the slider’s nearest GPX point into head and tail segments. Disabled at segment endpoints or when no segment context is available.
 - **Delete** — remove the highlighted segment after a confirmation dialog describing its timestamp span and point count.
 - **Undo** — restore the segment structure and checkbox state from before the most recent split or delete (one level; disabled until an edit has been made).
@@ -213,7 +213,7 @@ Reusable logic in `track_analysis.py`:
 - `build_distance_interval_markers(gpx_points, interval_miles, …)` — list of `TrackIntervalMarker`.
 - `find_position_at_timestamp(gpx_points, target_timestamp)` — interpolated map position at a time.
 - `split_gpx_segment_point_lists_at_point_index(…)` / `remove_gpx_segment_from_segment_point_lists(…)` — segment edit helpers.
-- `format_gpx_point_metadata_lines(gpx_point)` / `format_segment_summary_metadata_lines(…)` — metadata panel text.
+- `format_gpx_point_metadata_lines(gpx_point)` / `format_segment_summary_metadata_lines(…)` — point metadata panel and segment information popups.
 - Label formatters for hour, distance, and segment interval display.
 
 ## GPX utilities (library)

@@ -1487,7 +1487,7 @@ class MainWindow:
       self._update_segment_split_button_state(None)
 
   def _update_track_metadata_for_slider_timestamp(self, selected_timestamp):
-    """Refresh the point and segment metadata boxes for the slider time."""
+    """Refresh the point metadata box for the slider time."""
 
     if self._track_metadata_panel is None:
       return
@@ -1497,24 +1497,11 @@ class MainWindow:
       visible_gpx_points,
       selected_timestamp,
     )
-    segment_summary = None
-
-    if self._segment_list_panel is not None:
-      segment_summary = self._segment_list_panel.find_segment_summary_for_gpx_point(
-        nearest_gpx_point,
-      )
-
     point_metadata_lines = gis_graphical_editor.track_analysis.format_gpx_point_metadata_lines(
       nearest_gpx_point,
     )
-    segment_metadata_lines = \
-      gis_graphical_editor.track_analysis.format_segment_summary_metadata_lines(
-        segment_summary,
-        self._track_display_options.use_metric_units,
-      )
 
     self._track_metadata_panel.set_point_metadata(point_metadata_lines)
-    self._track_metadata_panel.set_segment_metadata(segment_metadata_lines)
 
   def _update_segment_list_slider_highlight(self, selected_timestamp):
     """Highlight the segment row that contains the slider's current timestamp."""
