@@ -33,17 +33,42 @@ def test_is_control_modifier_active_when_either_control_key_is_tracked():
   root.destroy()
 
 
-def test_is_control_modifier_active_when_pointer_motion_saw_control_state():
+def test_is_control_modifier_inactive_immediately_after_control_key_release():
   root = tkinter.Tk()
   root.withdraw()
   main_window = gis_graphical_editor.main_window.MainWindow(root)
-  motion_event = type("MotionEvent", (), {"state": gis_graphical_editor.main_window._MAP_CONTROL_CLICK_STATE_MASK})()
   click_event = type("ClickEvent", (), {"state": 0})()
-  main_window._handle_map_pointer_motion(motion_event)
+  main_window._pressed_control_key_names.add("Control_L")
+  release_event = type("ReleaseEvent", (), {"keysym": "Control_L"})()
+  main_window._handle_any_key_release(release_event)
 
-  assert main_window._is_control_modifier_active_for_map_event(click_event)
+  assert not main_window._is_control_modifier_active_for_map_event(click_event)
 
   root.destroy()
+
+
+def test_handle_map_canvas_zoom_button_zooms_in_after_control_release():
+  root = tkinter.Tk()
+  root.withdraw()
+  main_window = gis_graphical_editor.main_window.MainWindow(root)
+  map_widget = FakeMapWidget(starting_zoom=12)
+  main_window._map_widget = map_widget
+  main_window._original_map_mouse_zoom = lambda event: setattr(
+    map_widget,
+    "zoom",
+    map_widget.zoom + 1,
+  )
+  main_window._pressed_control_key_names.add("Control_L")
+  main_window._handle_any_key_release(type("ReleaseEvent", (), {"keysym": "Control_L"})())
+  button_four_event = type(
+    "ButtonFourEvent",
+    (),
+    {"num": 4, "x": 200, "y": 150, "state": 0},
+  )()
+  main_window._handle_map_canvas_zoom_button(button_four_event)
+  root.destroy()
+
+  assert map_widget.zoom == 13
 
 
 def test_handle_map_canvas_button_one_zooms_out_when_control_is_held():

@@ -82,7 +82,6 @@ class MainWindow:
     self._segment_edit_undo_stack = []
     self._map_control_zoom_last_handled_monotonic_seconds = 0.0
     self._pressed_control_key_names = set()
-    self._control_modifier_seen_on_pointer = False
     self._original_map_mouse_click = None
     self._original_map_mouse_release = None
     self._original_map_mouse_move = None
@@ -166,7 +165,8 @@ class MainWindow:
   def _handle_any_key_release(self, event):
     """Stop tracking Control_L and Control_R from generic key-release events."""
 
-    self._pressed_control_key_names.discard(event.keysym)
+    if event.keysym in _CONTROL_KEYSYM_NAMES:
+      self._pressed_control_key_names.discard(event.keysym)
 
   def _handle_control_key_pressed(self, event):
     """Track when either Control key is held for map ctrl+click zoom."""
@@ -177,31 +177,16 @@ class MainWindow:
   def _handle_control_key_released(self, event):
     """Stop tracking a Control key once it is released."""
 
-    self._pressed_control_key_names.discard(event.keysym)
+    if event.keysym in _CONTROL_KEYSYM_NAMES:
+      self._pressed_control_key_names.discard(event.keysym)
 
   def _is_control_modifier_active_for_map_event(self, event):
     """Return True when Control is held for a map mouse event."""
 
     if event.state & _MAP_CONTROL_CLICK_STATE_MASK:
-      self._control_modifier_seen_on_pointer = True
-
       return True
 
-    if self._pressed_control_key_names:
-      return True
-
-    return self._control_modifier_seen_on_pointer
-
-  def _handle_map_pointer_motion(self, event):
-    """Remember when Control is held during pointer movement over the map."""
-
-    if event.state & _MAP_CONTROL_CLICK_STATE_MASK:
-      self._control_modifier_seen_on_pointer = True
-
-      return
-
-    if not self._pressed_control_key_names:
-      self._control_modifier_seen_on_pointer = False
+    return bool(self._pressed_control_key_names)
 
   def _update_file_menu_state(self):
     """Enable Save As and Close only while a map with loaded track data is visible."""
@@ -483,7 +468,6 @@ class MainWindow:
     map_canvas.bind("<Button-4>", self._handle_map_canvas_zoom_button)
     map_canvas.bind("<Button-5>", self._handle_map_canvas_zoom_button)
     map_canvas.bind("<Double-Button-1>", self._handle_map_double_click)
-    map_canvas.bind("<Motion>", self._handle_map_pointer_motion, add="+")
 
   def _handle_map_canvas_button_one(self, event):
     """Zoom out on ctrl+click or start a map pan for a normal left click."""
