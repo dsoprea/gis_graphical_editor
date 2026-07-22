@@ -33,3 +33,9 @@ def test_compute_slider_button_icon_pixel_size_subtracts_button_chrome():
 
   assert icon_width == 38
   assert icon_height == 27
+
+
+def test_create_star_waypoint_icon_returns_photo_image():
+  star_waypoint_image = gis_graphical_editor.map_icon_utility.build_star_waypoint_image()
+
+  assert star_waypoint_image.size == (16, 16)

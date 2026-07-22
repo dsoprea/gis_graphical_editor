@@ -55,3 +55,11 @@ def test_track_display_options_stores_exclude_idle_segments():
   )
 
   assert track_display_options.exclude_idle_segments is True
+
+
+def test_track_display_options_stores_segment_names_components():
+  track_display_options = gis_graphical_editor.track_display_options.TrackDisplayOptions(
+    segment_names_components=("autolog", "segment", "name"),
+  )
+
+  assert track_display_options.segment_names_components == ("autolog", "segment", "name")

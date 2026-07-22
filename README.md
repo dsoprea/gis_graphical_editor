@@ -29,18 +29,18 @@ Launch the application:
 gge
 ```
 
-Without `--filepath`, the **File → Load** dialog opens on startup. Choose a `.gpx` file to display the track.
+Without a filepath argument, the **File → Load** dialog opens on startup. Choose a `.gpx` file to display the track.
 
 Load a specific file immediately:
 
 ```bash
-gge --filepath /path/to/track.gpx
+gge /path/to/track.gpx
 ```
 
 Show every recorded point as a green dot:
 
 ```bash
-gge --filepath /path/to/track.gpx --points
+gge /path/to/track.gpx --points
 ```
 
 ![Green dots at every recorded GPX point along the Key West track](asset/documentation/image/track-recorded-points.png)
@@ -48,7 +48,7 @@ gge --filepath /path/to/track.gpx --points
 Place orange markers every 2 hours and red markers every 10 miles:
 
 ```bash
-gge --filepath /path/to/track.gpx --mark-hours 2 --mark-distance 10
+gge /path/to/track.gpx --mark-hours 2 --mark-distance 10
 ```
 
 ![Orange hour markers and red distance markers with labels along the Key West track](asset/documentation/image/track-interval-markers.png)
@@ -61,7 +61,8 @@ All three overlay types together:
 
 | Option | Description |
 |--------|-------------|
-| `--filepath PATH` | Load this GPX file on startup instead of prompting |
+| `PATH` (optional positional) | Load this GPX file on startup instead of prompting |
+| `--ref-segment-name NAMESPACE.NODE.LABEL_ATTRIBUTE` | Label visible `<trkseg>` segments from extensions (e.g. `circuit.lap.label`) |
 | `--points` | Draw a green dot at every recorded GPX point |
 | `--mark-hours N` | Place an orange marker every *N* hours along the path (requires timestamps) |
 | `--mark-distance N` | Place a red marker every *N* miles along the path |

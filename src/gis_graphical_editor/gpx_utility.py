@@ -1,6 +1,7 @@
 """Load and write GPX files as point records with coordinates and timestamps."""
 
 import datetime
+import re
 import zoneinfo
 
 import gpxpy
@@ -115,6 +116,183 @@ def load_track_point_segments_from_gpx(gpx_path):
     segment_point_lists.append(waypoint_points)
 
   return segment_point_lists
+
+
+def load_gpx_waypoints_from_gpx(gpx_path):
+  """Return GpxPointRecord values for every standalone GPX waypoint element."""
+
+  with open(gpx_path, "r", encoding="utf-8") as gpx_file:
+    gpx_text = gpx_file.read()
+
+  gpx_document = gpxpy.parse(gpx_text)
+  waypoint_points = []
+
+  # Collect waypoint elements independently of track and route geometry.
+  for waypoint in gpx_document.waypoints:
+    waypoint_points.append(_build_gpx_point_record(waypoint))
+
+  return waypoint_points
+
+
+def parse_ref_segment_name_dotted_expression(ref_segment_name_expression):
+  """Parse namespace.node.label_attribute and return its three components."""
+
+  expression_components = ref_segment_name_expression.split(".")
+
+  if len(expression_components) != 3:
+    message = \
+      '--ref-segment-name must be a dotted expression with exactly three components: ' \
+      'namespace.node.label_attribute (got "{ref_segment_name_expression}").'.format(
+        ref_segment_name_expression=ref_segment_name_expression,
+      )
+    raise ValueError(message)
+
+  namespace = expression_components[0]
+  node = expression_components[1]
+  label_attribute = expression_components[2]
+
+  if namespace == "" or node == "" or label_attribute == "":
+    message = \
+      '--ref-segment-name components must be nonempty (namespace.node.label_attribute).'
+    raise ValueError(message)
+
+  return namespace, node, label_attribute
+
+
+def load_track_segment_label_texts_from_gpx(
+  gpx_path,
+  namespace,
+  node,
+  label_attribute,
+):
+  """Return one label string per GPX trkseg using a matching extensions child element."""
+
+  with open(gpx_path, "r", encoding="utf-8") as gpx_file:
+    gpx_text = gpx_file.read()
+
+  gpx_document = gpxpy.parse(gpx_text)
+  namespace_uri = resolve_gpx_extension_namespace_uri(gpx_text, namespace)
+  segment_label_texts = []
+
+  # Read each trkseg extensions block in file order across all tracks.
+  for track in gpx_document.tracks:
+    for segment in track.segments:
+      segment_label_text = extract_segment_label_text_from_extensions(
+        segment.extensions,
+        namespace_uri,
+        node,
+        label_attribute,
+      )
+      segment_label_texts.append(segment_label_text)
+
+  return segment_label_texts
+
+
+def resolve_gpx_extension_namespace_uri(gpx_text, namespace_token):
+  """Return the xmlns URI for namespace_token, or namespace_token when undeclared."""
+
+  xmlns_pattern = r'xmlns:{namespace_token}="([^"]+)"'.format(
+    namespace_token=re.escape(namespace_token),
+  )
+  xmlns_match = re.search(xmlns_pattern, gpx_text)
+
+  if xmlns_match is not None:
+    return xmlns_match.group(1)
+
+  return namespace_token
+
+
+def extract_segment_label_text_from_extensions(
+  extensions,
+  namespace_uri,
+  node,
+  label_attribute,
+):
+  """Return label_attribute from a namespace:node element under one trkseg extensions block."""
+
+  for extension_element in extensions:
+    extension_namespace_uri, local_name = _split_xml_element_tag(extension_element.tag)
+
+    if local_name != node:
+      continue
+
+    if not _extension_namespace_matches(extension_namespace_uri, namespace_uri):
+      continue
+
+    if label_attribute not in extension_element.attrib:
+      return ""
+
+    label_text = _stringify_gpx_metadata_value(extension_element.attrib[label_attribute])
+
+    return label_text
+
+  return ""
+
+
+def build_gpx_waypoint_tooltip_text(gpx_point):
+  """Return the waypoint name for map tooltips when it is nonempty."""
+
+  if "name" not in gpx_point.additional_metadata:
+    return ""
+
+  waypoint_name = gpx_point.additional_metadata["name"]
+
+  if waypoint_name == "":
+    return ""
+
+  return waypoint_name
+
+
+def collect_nonempty_track_segment_region_names(segment_label_texts):
+  """Return extracted trkseg region names in file order, omitting empty labels."""
+
+  region_names = []
+
+  for segment_label_text in segment_label_texts:
+    if segment_label_text == "":
+      continue
+
+    region_names.append(segment_label_text)
+
+  return region_names
+
+
+def _split_xml_element_tag(element_tag):
+  """Return namespace URI and local name for one XML element tag string."""
+
+  if "}" in element_tag:
+    namespace_uri, local_name = element_tag.split("}", 1)
+    namespace_uri = namespace_uri.lstrip("{")
+
+    return namespace_uri, local_name
+
+  return "", element_tag
+
+
+def _extension_namespace_matches(extension_namespace_uri, namespace_uri):
+  """Return True when extension_namespace_uri matches the resolved namespace URI."""
+
+  if extension_namespace_uri == namespace_uri:
+    return True
+
+  namespace_uri_tail = namespace_uri.rsplit("/", 1)[-1]
+
+  if extension_namespace_uri.endswith("/{namespace_uri_tail}".format(
+    namespace_uri_tail=namespace_uri_tail,
+  )):
+    return True
+
+  if extension_namespace_uri.endswith(":{namespace_uri_tail}".format(
+    namespace_uri_tail=namespace_uri_tail,
+  )):
+    return True
+
+  extension_namespace_uri_tail = extension_namespace_uri.rsplit("/", 1)[-1]
+
+  if extension_namespace_uri_tail == namespace_uri_tail:
+    return True
+
+  return False
 
 
 def load_track_points_from_gpx(gpx_path):

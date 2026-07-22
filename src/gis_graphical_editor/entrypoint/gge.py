@@ -6,6 +6,7 @@ import sys
 import tkinter
 import zoneinfo
 
+import gis_graphical_editor.gpx_utility
 import gis_graphical_editor.main_window
 import gis_graphical_editor.track_display_options
 
@@ -26,6 +27,20 @@ def _parse_iana_timezone_name(timezone_name):
   return timezone_name
 
 
+def _parse_ref_segment_name_expression(ref_segment_name_expression):
+  """Validate and return namespace, node, and label_attribute for --ref-segment-name."""
+
+  try:
+    ref_segment_name_components = \
+      gis_graphical_editor.gpx_utility.parse_ref_segment_name_dotted_expression(
+        ref_segment_name_expression,
+      )
+  except ValueError as error:
+    raise argparse.ArgumentTypeError(str(error))
+
+  return ref_segment_name_components
+
+
 def main(argv=None):
   """Parse CLI flags, build the main window, and start the Tk event loop."""
 
@@ -33,6 +48,12 @@ def main(argv=None):
 
   argument_parser = argparse.ArgumentParser(
     description="View GPX tracks on an OpenStreetMap map; split or delete segments along the time slider.",
+  )
+  argument_parser.add_argument(
+    "filepath",
+    nargs="?",
+    metavar="PATH",
+    help="Load this GPX file immediately on startup.",
   )
   argument_parser.add_argument(
     "--mark-hours",
@@ -57,9 +78,13 @@ def main(argv=None):
     help="Hide text labels on --mark-hours and --mark-distance markers.",
   )
   argument_parser.add_argument(
-    "--filepath",
-    metavar="PATH",
-    help="Load this GPX file immediately on startup.",
+    "--ref-segment-name",
+    metavar="NAMESPACE.NODE.LABEL_ATTRIBUTE",
+    type=_parse_ref_segment_name_expression,
+    help=(
+      "Read each trkseg label from GPX extensions "
+      "(e.g. circuit.lap.label for <circuit:lap label=\"…\"/>)."
+    ),
   )
   argument_parser.add_argument(
     "--as-timezone",
@@ -101,6 +126,7 @@ def main(argv=None):
     show_points=arguments.points,
     show_mark_labels=not arguments.no_mark_labels,
     initial_gpx_filepath=arguments.filepath,
+    segment_names_components=arguments.ref_segment_name,
     as_timezone_name=arguments.as_timezone,
     show_dates_in_mark_labels=arguments.dates,
     use_metric_units=arguments.metric,

@@ -11,6 +11,8 @@ import tkintermapview.utility_functions
 
 import gis_graphical_editor.gpx_utility
 import gis_graphical_editor.map_icon_utility
+import gis_graphical_editor.map_marker_tooltip_utility
+import gis_graphical_editor.map_segment_label_overlay
 import gis_graphical_editor.segment_list_panel
 import gis_graphical_editor.time_slider_panel
 import gis_graphical_editor.track_analysis
@@ -30,6 +32,7 @@ _PATH_COLOR = "#0066CC"
 _PATH_WIDTH = 9
 _ORANGE_MARKER_TEXT = "#CC5500"
 _RED_MARKER_TEXT = "#990000"
+_SEGMENT_NAME_MARKER_TEXT = "#9B30FF"
 _MAP_VISIBILITY_MARGIN = 0.05
 
 
@@ -58,7 +61,9 @@ class MainWindow:
     self._green_point_icon = None
     self._orange_interval_icon = None
     self._red_interval_icon = None
+    self._star_waypoint_icon = None
     self._slider_pointer_icon = None
+    self._segment_label_overlay_manager = None
     self._time_slider_panel = None
     self._segment_list_panel = None
     self._right_sidebar_frame = None
@@ -69,6 +74,8 @@ class MainWindow:
     self._slider_position_marker = None
     self._loaded_gpx_points = None
     self._loaded_gpx_segments = None
+    self._loaded_gpx_waypoints = None
+    self._loaded_segment_label_texts = None
     self._segment_edit_undo_stack = []
 
     self._build_menu_bar()
@@ -78,7 +85,7 @@ class MainWindow:
     self._root.after(0, self._load_initial_gpx_file)
 
   def _load_initial_gpx_file(self):
-    """Open --filepath on startup or prompt for a GPX file when none was given."""
+    """Open the optional positional GPX filepath or prompt when none was given."""
 
     if self._track_display_options.initial_gpx_filepath is not None:
       self.load_gpx_file(self._track_display_options.initial_gpx_filepath)
@@ -260,6 +267,7 @@ class MainWindow:
       gpx_points = gis_graphical_editor.gpx_utility.load_gpx_points_from_gpx(gpx_path)
       gpx_segments = \
         gis_graphical_editor.gpx_utility.load_track_point_segments_from_gpx(gpx_path)
+      gpx_waypoints = gis_graphical_editor.gpx_utility.load_gpx_waypoints_from_gpx(gpx_path)
     except Exception as error:
       message = "Could not read GPX file:\n{error}".format(error=error)
       _LOGGER.exception(message)
@@ -298,6 +306,29 @@ class MainWindow:
             timezone_name=self._track_display_options.as_timezone_name)
         tkinter.messagebox.showwarning("Load GPX", message, parent=self._root)
 
+      waypoint_conversion_result = \
+        gis_graphical_editor.gpx_utility.convert_gpx_point_timestamps_to_timezone(
+          gpx_waypoints,
+          self._track_display_options.as_timezone_name)
+      gpx_waypoints = waypoint_conversion_result[0]
+
+      if waypoint_conversion_result[1]:
+        encountered_naive_timestamp = True
+
+    # Load optional per-segment labels from GPX extensions when requested.
+    if self._track_display_options.segment_names_components is not None:
+      namespace, node, label_attribute = self._track_display_options.segment_names_components
+      segment_label_texts = \
+        gis_graphical_editor.gpx_utility.load_track_segment_label_texts_from_gpx(
+          gpx_path,
+          namespace,
+          node,
+          label_attribute)
+      self._loaded_segment_label_texts = \
+        self._align_segment_label_texts_with_segments(segment_label_texts, gpx_segments)
+    else:
+      self._loaded_segment_label_texts = None
+
     # Warn when timestamp-dependent CLI options cannot be honored.
     if self._track_display_options.mark_hours_interval is not None:
       if not gis_graphical_editor.track_analysis.has_timestamps(gpx_points):
@@ -309,7 +340,22 @@ class MainWindow:
       tkinter.messagebox.showwarning("Load GPX", message, parent=self._root)
 
     self._loaded_gpx_segments = gpx_segments
+    self._loaded_gpx_waypoints = gpx_waypoints
     self._display_gpx_points(gpx_points)
+
+  def _align_segment_label_texts_with_segments(self, segment_label_texts, gpx_segments):
+    """Pad or trim segment_label_texts so it matches the loaded segment count."""
+
+    aligned_segment_label_texts = list(segment_label_texts)
+    segment_count = len(gpx_segments)
+
+    while len(aligned_segment_label_texts) < segment_count:
+      aligned_segment_label_texts.append("")
+
+    if len(aligned_segment_label_texts) > segment_count:
+      aligned_segment_label_texts = aligned_segment_label_texts[:segment_count]
+
+    return aligned_segment_label_texts
 
   def _ensure_content_paned(self):
     """Create the horizontal split between the map column and right sidebar."""
@@ -346,6 +392,12 @@ class MainWindow:
 
     self._map_widget = tkintermapview.TkinterMapView(self._map_column_frame, corner_radius=0)
     self._map_widget.pack(fill=tkinter.BOTH, expand=True)
+    self._segment_label_overlay_manager = \
+      gis_graphical_editor.map_segment_label_overlay.MapSegmentLabelOverlayManager(
+        self._root,
+        text_color=_SEGMENT_NAME_MARKER_TEXT,
+      )
+    self._segment_label_overlay_manager.install_on_map_widget(self._map_widget)
     self._bind_map_widget_events()
     self._update_file_menu_state()
 
@@ -425,6 +477,9 @@ class MainWindow:
     self._remove_time_slider_panel()
     self._remove_right_sidebar()
 
+    if self._segment_label_overlay_manager is not None:
+      self._segment_label_overlay_manager.clear()
+
     if self._map_widget is not None:
       self._map_widget.pack_forget()
       self._map_widget.destroy()
@@ -445,10 +500,14 @@ class MainWindow:
     self._green_point_icon = None
     self._orange_interval_icon = None
     self._red_interval_icon = None
+    self._star_waypoint_icon = None
     self._slider_pointer_icon = None
+    self._segment_label_overlay_manager = None
     self._slider_position_marker = None
     self._loaded_gpx_points = None
     self._loaded_gpx_segments = None
+    self._loaded_gpx_waypoints = None
+    self._loaded_segment_label_texts = None
     self._segment_edit_undo_stack = []
     self._last_slider_timestamp = None
     self._right_sidebar_panel_width = None
@@ -527,6 +586,13 @@ class MainWindow:
       gis_graphical_editor.track_analysis.copy_gpx_segment_point_lists(
         self._loaded_gpx_segments,
       )
+    segment_label_texts_snapshot = []
+
+    if self._loaded_segment_label_texts is not None:
+      segment_label_texts_snapshot = \
+        gis_graphical_editor.track_analysis.copy_segment_label_texts(
+          self._loaded_segment_label_texts,
+        )
     unchecked_first_points = []
 
     if self._segment_list_panel is not None:
@@ -534,7 +600,7 @@ class MainWindow:
         self._segment_list_panel.collect_unchecked_segment_first_points()
 
     self._segment_edit_undo_stack.append(
-      (segment_point_lists_snapshot, unchecked_first_points),
+      (segment_point_lists_snapshot, segment_label_texts_snapshot, unchecked_first_points),
     )
     self._sync_segment_undo_button()
 
@@ -542,10 +608,15 @@ class MainWindow:
     self,
     segment_point_lists,
     unchecked_first_points,
+    segment_label_texts=None,
   ):
     """Assign segment lists, rebuild the panel, and refresh the map."""
 
     self._loaded_gpx_segments = segment_point_lists
+
+    if segment_label_texts is not None:
+      self._loaded_segment_label_texts = segment_label_texts
+
     self._rebuild_loaded_gpx_points_from_segments()
     self._setup_segment_list_panel()
 
@@ -564,11 +635,12 @@ class MainWindow:
     if not self._segment_edit_undo_stack:
       return
 
-    segment_point_lists_snapshot, unchecked_first_points = \
+    segment_point_lists_snapshot, segment_label_texts_snapshot, unchecked_first_points = \
       self._segment_edit_undo_stack.pop()
     self._apply_loaded_gpx_segment_state(
       segment_point_lists_snapshot,
       unchecked_first_points,
+      segment_label_texts_snapshot,
     )
     self._sync_segment_undo_button()
 
@@ -620,12 +692,23 @@ class MainWindow:
     if updated_segment_point_lists is None:
       return
 
+    updated_segment_label_texts = self._loaded_segment_label_texts
+
+    if self._loaded_segment_label_texts is not None:
+      original_segment_list_index = self._loaded_gpx_segments.index(segment_summary.segment_points)
+      updated_segment_label_texts = \
+        gis_graphical_editor.track_analysis.split_segment_label_texts_at_index(
+          self._loaded_segment_label_texts,
+          original_segment_list_index,
+        )
+
     unchecked_first_points = \
       self._segment_list_panel.collect_unchecked_segment_first_points()
     self._push_segment_edit_undo_state()
     self._apply_loaded_gpx_segment_state(
       updated_segment_point_lists,
       unchecked_first_points,
+      updated_segment_label_texts,
     )
 
   def _handle_segment_delete_requested(self):
@@ -674,12 +757,23 @@ class MainWindow:
     if updated_segment_point_lists is None:
       return
 
+    updated_segment_label_texts = self._loaded_segment_label_texts
+
+    if self._loaded_segment_label_texts is not None:
+      original_segment_list_index = self._loaded_gpx_segments.index(segment_summary.segment_points)
+      updated_segment_label_texts = \
+        gis_graphical_editor.track_analysis.remove_segment_label_text_at_index(
+          self._loaded_segment_label_texts,
+          original_segment_list_index,
+        )
+
     unchecked_first_points = \
       self._segment_list_panel.collect_unchecked_segment_first_points()
     self._push_segment_edit_undo_state()
     self._apply_loaded_gpx_segment_state(
       updated_segment_point_lists,
       unchecked_first_points,
+      updated_segment_label_texts,
     )
 
   def _update_segment_split_button_state(self, selected_timestamp):
@@ -736,6 +830,9 @@ class MainWindow:
     self._map_widget.delete_all_marker()
     self._slider_position_marker = None
 
+    if self._segment_label_overlay_manager is not None:
+      self._segment_label_overlay_manager.clear_canvas_text()
+
     if not visible_gpx_points:
       self._setup_time_slider_if_needed(visible_gpx_points)
 
@@ -773,6 +870,19 @@ class MainWindow:
         self._track_display_options.use_metric_units,
       )
       self._display_distance_interval_markers(distance_interval_markers)
+
+    if self._loaded_segment_label_texts is not None and self._loaded_gpx_segments is not None:
+      checked_segment_indices = self._get_checked_extension_label_segment_indices()
+      segment_label_placements = \
+        gis_graphical_editor.track_analysis.build_segment_label_placements(
+          self._loaded_gpx_segments,
+          self._loaded_segment_label_texts,
+          checked_segment_indices,
+        )
+      self._display_segment_label_placements(segment_label_placements)
+
+    if self._loaded_gpx_waypoints:
+      self._display_gpx_waypoints(self._loaded_gpx_waypoints)
 
     # Fit the map after the slider and sidebar layout have their final dimensions.
     self._setup_time_slider_if_needed(visible_gpx_points)
@@ -1141,6 +1251,87 @@ class MainWindow:
       return
 
     self._map_widget.set_position(latitude, longitude)
+
+  def _get_checked_segment_indices(self):
+    """Return segment indices currently checked in the segment list panel."""
+
+    if self._segment_list_panel is None:
+      if self._loaded_gpx_segments is None:
+        return []
+
+      segment_indices = []
+
+      for segment_index in range(len(self._loaded_gpx_segments)):
+        segment_indices.append(segment_index)
+
+      return segment_indices
+
+    return self._segment_list_panel.get_checked_segment_indices()
+
+  def _get_checked_extension_label_segment_indices(self):
+    """Return loaded-segment indices for checked rows when extension labels are enabled."""
+
+    if self._segment_list_panel is None:
+      if self._loaded_gpx_segments is None:
+        return []
+
+      checked_segment_indices = []
+
+      for segment_index in range(len(self._loaded_gpx_segments)):
+        checked_segment_indices.append(segment_index)
+
+      return checked_segment_indices
+
+    checked_panel_indices = self._segment_list_panel.get_checked_segment_indices()
+    segment_summaries = self._segment_list_panel.get_segment_summaries()
+    checked_loaded_segment_indices = []
+
+    # Map sorted checklist rows back to GPX trkseg order for extension label lookup.
+    for panel_index in checked_panel_indices:
+      segment_points = segment_summaries[panel_index].segment_points
+      loaded_segment_index = self._find_loaded_segment_index_for_segment_points(segment_points)
+      checked_loaded_segment_indices.append(loaded_segment_index)
+
+    return checked_loaded_segment_indices
+
+  def _find_loaded_segment_index_for_segment_points(self, segment_points):
+    """Return the index of segment_points inside _loaded_gpx_segments."""
+
+    for loaded_segment_index, loaded_segment_points in enumerate(self._loaded_gpx_segments):
+      if loaded_segment_points is segment_points:
+        return loaded_segment_index
+
+    raise ValueError("segment_points is not present in _loaded_gpx_segments")
+
+  def _display_segment_label_placements(self, segment_label_placements):
+    """Draw rotated labels parallel to each segment's middle point pair."""
+
+    if self._segment_label_overlay_manager is None:
+      return
+
+    self._segment_label_overlay_manager.set_segment_label_placements(segment_label_placements)
+    self._segment_label_overlay_manager.schedule_draw_all()
+
+  def _display_gpx_waypoints(self, gpx_waypoints):
+    """Draw star markers for every GPX waypoint with optional name tooltips."""
+
+    if self._star_waypoint_icon is None:
+      self._star_waypoint_icon = gis_graphical_editor.map_icon_utility.create_star_waypoint_icon()
+
+    for gpx_waypoint in gpx_waypoints:
+      map_marker = self._map_widget.set_marker(
+        gpx_waypoint.latitude,
+        gpx_waypoint.longitude,
+        icon=self._star_waypoint_icon,
+        icon_anchor="center",
+      )
+      waypoint_tooltip_text = \
+        gis_graphical_editor.gpx_utility.build_gpx_waypoint_tooltip_text(gpx_waypoint)
+      gis_graphical_editor.map_marker_tooltip_utility.schedule_bind_map_marker_tooltip(
+        self._root,
+        map_marker,
+        waypoint_tooltip_text,
+      )
 
   def _display_recorded_points(self, gpx_points):
     """Draw --points green dots at every recorded GPX coordinate."""

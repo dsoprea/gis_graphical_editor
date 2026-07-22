@@ -1,5 +1,7 @@
 """Small map marker images for GPX point display."""
 
+import math
+
 import PIL.Image
 import PIL.ImageDraw
 import PIL.ImageTk
@@ -20,6 +22,9 @@ _SLIDER_BUTTON_ICON_FILL = "#000000"
 _SLIDER_BUTTON_CHARACTER_WIDTH = 2
 _SLIDER_BUTTON_BORDER_PADDING_PIXELS = 6
 _SLIDER_BUTTON_PROBE_TEXT = ">"
+_STAR_WAYPOINT_ICON_SIZE = 16
+_STAR_WAYPOINT_FILL = "#FFD700"
+_STAR_WAYPOINT_OUTLINE = "#CC9900"
 
 
 def create_green_point_icon():
@@ -38,6 +43,48 @@ def create_red_interval_icon():
   """Return a PhotoImage red dot slightly wider than the path line."""
 
   return create_dot_icon(_RED_INTERVAL_FILL, _RED_INTERVAL_OUTLINE)
+
+
+def create_star_waypoint_icon():
+  """Return a PhotoImage five-point star for GPX waypoint markers."""
+
+  image = build_star_waypoint_image()
+  photo_image = PIL.ImageTk.PhotoImage(image)
+
+  return photo_image
+
+
+def build_star_waypoint_image():
+  """Return a PIL image with a five-point star for GPX waypoint markers."""
+
+  image = PIL.Image.new("RGBA", (_STAR_WAYPOINT_ICON_SIZE, _STAR_WAYPOINT_ICON_SIZE), (0, 0, 0, 0))
+  draw = PIL.ImageDraw.Draw(image)
+  center_x = _STAR_WAYPOINT_ICON_SIZE / 2.0
+  center_y = _STAR_WAYPOINT_ICON_SIZE / 2.0
+  outer_radius = (_STAR_WAYPOINT_ICON_SIZE / 2.0) - 1.0
+  inner_radius = outer_radius * 0.45
+  star_points = []
+
+  # Build alternating outer and inner vertices for a five-point star.
+  for point_index in range(10):
+    angle_radians = math.radians(-90 + point_index * 36)
+
+    if point_index % 2 == 0:
+      radius = outer_radius
+    else:
+      radius = inner_radius
+
+    point_x = center_x + radius * math.cos(angle_radians)
+    point_y = center_y + radius * math.sin(angle_radians)
+    star_points.append((point_x, point_y))
+
+  draw.polygon(
+    star_points,
+    fill=_STAR_WAYPOINT_FILL,
+    outline=_STAR_WAYPOINT_OUTLINE,
+  )
+
+  return image
 
 
 def create_red_slider_pointer_icon():

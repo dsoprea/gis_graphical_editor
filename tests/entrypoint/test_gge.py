@@ -29,3 +29,21 @@ def test_main_rejects_invalid_as_timezone():
     exit_code = error.code
 
   assert exit_code != 0
+
+
+def test_main_rejects_invalid_ref_segment_name_expression():
+  exit_code = 0
+
+  try:
+    gis_graphical_editor.entrypoint.gge.main(["--ref-segment-name", "only.two"])
+  except SystemExit as error:
+    exit_code = error.code
+
+  assert exit_code != 0
+
+
+def test_parse_ref_segment_name_expression_accepts_valid_dotted_expression():
+  ref_segment_name_components = \
+    gis_graphical_editor.entrypoint.gge._parse_ref_segment_name_expression("autolog.segment.name")
+
+  assert ref_segment_name_components == ("autolog", "segment", "name")

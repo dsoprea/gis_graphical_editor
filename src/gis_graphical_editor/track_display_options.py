@@ -11,6 +11,7 @@ class TrackDisplayOptions:
     show_points=False,
     show_mark_labels=True,
     initial_gpx_filepath=None,
+    segment_names_components=None,
     as_timezone_name=None,
     show_dates_in_mark_labels=False,
     use_metric_units=False,
@@ -23,6 +24,7 @@ class TrackDisplayOptions:
     self.show_points = show_points
     self.show_mark_labels = show_mark_labels
     self.initial_gpx_filepath = initial_gpx_filepath
+    self.segment_names_components = segment_names_components
     self.as_timezone_name = as_timezone_name
     self.show_dates_in_mark_labels = show_dates_in_mark_labels
     self.use_metric_units = use_metric_units

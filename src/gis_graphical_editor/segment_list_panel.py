@@ -72,6 +72,17 @@ class SegmentListPanel(tkinter.Frame):
 
     return selected_gpx_points
 
+  def get_checked_segment_indices(self):
+    """Return zero-based indices for every checked segment in the checklist."""
+
+    checked_segment_indices = []
+
+    for segment_index, selection_variable in enumerate(self._selection_variables):
+      if selection_variable.get():
+        checked_segment_indices.append(segment_index)
+
+    return checked_segment_indices
+
   def get_segment_summaries(self):
     """Return the segment summaries backing this checklist."""
 

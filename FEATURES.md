@@ -13,8 +13,9 @@ Complete catalog of GIS Graphical Editor (`gge`) capabilities, including map dis
 
 ## GPX loading
 
-- **File dialog load** via **File → Load** (Ctrl+O) or startup prompt when no `--filepath` is given.
-- **Startup load** via `--filepath PATH` without opening the dialog first.
+- **File dialog load** via **File → Load** (Ctrl+O) or startup prompt when no GPX filepath positional argument is given.
+- **Startup load** via optional positional `PATH` argument without opening the dialog first.
+- **`--ref-segment-name`**: draws rotated trkseg extension labels on the map (for example `circuit.lap.label` on Circuit GPX files).
 - **Supported geometry sources** (first non-empty wins):
   - Track segment points, in file order across all tracks and segments.
   - Route points when the file has no track segments.
@@ -114,6 +115,30 @@ Complete catalog of GIS Graphical Editor (`gge`) capabilities, including map dis
 - **Default labels** (unless `--no-mark-labels`): rounded total distance and interpolated timestamp when available, e.g. `10 mi, 2024-06-01 09:30:00`. Distance-only label when no timestamp can be interpolated. Include calendar dates when `--dates` is set.
 - **Timestamp interpolation**: linear between segment endpoint timestamps when both exist; otherwise falls back to whichever endpoint has a time.
 
+## Segment name labels (`--ref-segment-name NAMESPACE.NODE.LABEL_ATTRIBUTE`)
+
+- **Text labels** at the midpoint of each visible GPX `<trkseg>`, rotated parallel to the line through two adjacent points from the middle of that segment.
+- **Expression format**: exactly three dot-separated components — `namespace`, `node`, and `label_attribute` — matching a child element under that segment’s `<extensions>` block.
+- **Example**: for
+
+  ```xml
+  <trkseg>
+    <extensions>
+      <circuit:lap regionId="1" regionName="The Greens 1" label="The Greens 1"/>
+    </extensions>
+    …
+  </trkseg>
+  ```
+
+  use `--ref-segment-name circuit.lap.label` to display `The Greens 1` at the segment midpoint.
+- **Visibility**: follows segment checklist checkboxes; unchecked segments are not labeled on the map.
+- **Segment edits**: split keeps the label on the head segment; delete removes the label; undo restores prior label lists.
+
+## GPX waypoint markers
+
+- **Gold star** at every standalone `<wpt>` coordinate, drawn even when the file also contains track segments.
+- **Tooltip** on hover when the waypoint has a nonempty `name` field.
+
 ## Marker appearance
 
 ![Combined green point dots, orange hour markers, and red distance markers on one track](asset/documentation/image/track-combined-overlays.png)
@@ -123,6 +148,8 @@ Complete catalog of GIS Graphical Editor (`gge`) capabilities, including map dis
 | Recorded point | Green (`#00AA00`) | `--points` |
 | Hour interval | Orange (`#FF8800`) | `--mark-hours N` |
 | Distance interval | Red (`#CC0000`) | `--mark-distance N` |
+| Segment name label | Purple text (`#9B30FF`) | `--ref-segment-name` when label text exists |
+| GPX waypoint | Gold star (`#FFD700`) | Always for `<wpt>` elements |
 
 - All marker icons are filled ellipses with outline, rendered via Pillow and sized to match path width.
 - Interval marker text uses orange (`#CC5500`) or red (`#990000`) when labels are shown.
@@ -131,7 +158,8 @@ Complete catalog of GIS Graphical Editor (`gge`) capabilities, including map dis
 
 | Flag | Effect |
 |------|--------|
-| `--filepath PATH` | Load GPX on startup |
+| `PATH` (positional, optional) | Load GPX on startup |
+| `--ref-segment-name NAMESPACE.NODE.LABEL_ATTRIBUTE` | Label visible `<trkseg>` segments from extensions (e.g. `circuit.lap.label`) |
 | `--points` | Show green dots at every point |
 | `--mark-hours N` | Orange markers every *N* hours |
 | `--mark-distance N` | Red markers every *N* miles (kilometers when `--metric`) |

@@ -40,6 +40,26 @@ class TrackIntervalMarker:
     self.label = label
 
 
+class SegmentLabelPlacement:
+  """Rotated segment label anchored to two adjacent middle track points."""
+
+  def __init__(
+    self,
+    label,
+    first_latitude,
+    first_longitude,
+    second_latitude,
+    second_longitude,
+  ):
+    """Store label text and the geographic endpoints that define its orientation."""
+
+    self.label = label
+    self.first_latitude = first_latitude
+    self.first_longitude = first_longitude
+    self.second_latitude = second_latitude
+    self.second_longitude = second_longitude
+
+
 def build_track_segment_summaries(
   segment_point_lists,
   exclude_idle_segments=False,
@@ -959,6 +979,137 @@ def remove_gpx_segment_from_segment_point_lists(segment_point_lists, segment_poi
   updated_segment_point_lists.pop(segment_list_index)
 
   return updated_segment_point_lists
+
+
+def copy_segment_label_texts(segment_label_texts):
+  """Return a shallow copy of per-segment label strings for undo snapshots."""
+
+  return list(segment_label_texts)
+
+
+def split_segment_label_texts_at_index(segment_label_texts, segment_list_index):
+  """Keep the label on the head segment and assign an empty label to the new tail."""
+
+  updated_segment_label_texts = list(segment_label_texts)
+  head_label_text = updated_segment_label_texts[segment_list_index]
+  updated_segment_label_texts[segment_list_index] = head_label_text
+  updated_segment_label_texts.insert(segment_list_index + 1, "")
+
+  return updated_segment_label_texts
+
+
+def remove_segment_label_text_at_index(segment_label_texts, segment_list_index):
+  """Return segment_label_texts with one label removed at segment_list_index."""
+
+  updated_segment_label_texts = list(segment_label_texts)
+  updated_segment_label_texts.pop(segment_list_index)
+
+  return updated_segment_label_texts
+
+
+def compute_midpoint_coordinates_along_segment(segment_points):
+  """Return latitude and longitude at the halfway distance along segment_points."""
+
+  point_count = len(segment_points)
+
+  if point_count == 0:
+    return None
+
+  if point_count == 1:
+    return segment_points[0].latitude, segment_points[0].longitude
+
+  total_distance = 0.0
+  segment_distances = []
+
+  # Sum haversine distances between consecutive segment points.
+  for point_index in range(point_count - 1):
+    segment_distance = compute_distance_between_points(
+      segment_points[point_index],
+      segment_points[point_index + 1],
+      use_metric_units=False,
+    )
+    segment_distances.append(segment_distance)
+    total_distance = total_distance + segment_distance
+
+  if total_distance == 0.0:
+    return segment_points[0].latitude, segment_points[0].longitude
+
+  halfway_distance = total_distance / 2.0
+  accumulated_distance = 0.0
+
+  # Walk segment legs until the halfway distance falls inside one leg.
+  for point_index, segment_distance in enumerate(segment_distances):
+    if accumulated_distance + segment_distance >= halfway_distance:
+      remaining_distance = halfway_distance - accumulated_distance
+      interpolation_fraction = remaining_distance / segment_distance
+      start_point = segment_points[point_index]
+      end_point = segment_points[point_index + 1]
+      latitude = start_point.latitude + interpolation_fraction * (
+        end_point.latitude - start_point.latitude
+      )
+      longitude = start_point.longitude + interpolation_fraction * (
+        end_point.longitude - start_point.longitude
+      )
+
+      return latitude, longitude
+
+    accumulated_distance = accumulated_distance + segment_distance
+
+  last_point = segment_points[-1]
+
+  return last_point.latitude, last_point.longitude
+
+
+def compute_middle_adjacent_segment_point_pair(segment_points):
+  """Return two adjacent GpxPointRecord values from the middle of segment_points."""
+
+  point_count = len(segment_points)
+
+  if point_count < 2:
+    return None
+
+  first_point_index = (point_count - 1) // 2
+  second_point_index = first_point_index + 1
+
+  return segment_points[first_point_index], segment_points[second_point_index]
+
+
+def build_segment_label_placements(segment_point_lists, segment_label_texts, segment_indices):
+  """Return rotated label placements for the requested segment indices."""
+
+  segment_label_placements = []
+
+  # Build one placement per checked segment that has a nonempty extension label.
+  for segment_index in segment_indices:
+    if segment_index >= len(segment_point_lists):
+      continue
+
+    if segment_index >= len(segment_label_texts):
+      continue
+
+    segment_label_text = segment_label_texts[segment_index]
+
+    if segment_label_text == "":
+      continue
+
+    segment_points = segment_point_lists[segment_index]
+    middle_point_pair = compute_middle_adjacent_segment_point_pair(segment_points)
+
+    if middle_point_pair is None:
+      continue
+
+    first_point, second_point = middle_point_pair
+    segment_label_placements.append(
+      SegmentLabelPlacement(
+        label=segment_label_text,
+        first_latitude=first_point.latitude,
+        first_longitude=first_point.longitude,
+        second_latitude=second_point.latitude,
+        second_longitude=second_point.longitude,
+      ),
+    )
+
+  return segment_label_placements
 
 
 def format_gpx_point_metadata_lines(gpx_point):
