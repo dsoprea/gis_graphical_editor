@@ -76,3 +76,66 @@ def test_track_metadata_panel_mounts_collapse_handle_on_current_location_title_r
   assert collapse_handle_pack_info["side"] == "right"
   assert collapse_handle_pack_info["in"] is title_row
   assert title_label_texts == ["Current location"]
+
+
+def test_track_metadata_panel_metadata_text_height_fits_content_up_to_maximum():
+  root = tkinter.Tk()
+  root.withdraw()
+  track_metadata_panel = gis_graphical_editor.track_metadata_panel.TrackMetadataPanel(
+    root,
+    panel_width=400,
+  )
+  point_metadata_text = track_metadata_panel._point_metadata_text
+  text_container_children = point_metadata_text.master.winfo_children()
+  scrollbar_children = [
+    child
+    for child in text_container_children
+    if isinstance(child, tkinter.Scrollbar)
+  ]
+
+  assert int(point_metadata_text.cget("height")) == 1
+
+  track_metadata_panel.set_point_metadata(["latitude: 40.0"])
+  assert int(point_metadata_text.cget("height")) == 1
+
+  track_metadata_panel.set_point_metadata([
+    "latitude: 40.0",
+    "longitude: -105.0",
+    "timestamp: 2024-06-01 08:00:00 UTC",
+  ])
+  assert int(point_metadata_text.cget("height")) == 3
+
+  many_metadata_lines = [
+    "line_{index}: value".format(index=line_index)
+    for line_index in range(20)
+  ]
+  track_metadata_panel.set_point_metadata(many_metadata_lines)
+  displayed_metadata_text = point_metadata_text.get("1.0", tkinter.END).strip()
+  displayed_metadata_line_count = len(displayed_metadata_text.splitlines())
+
+  assert int(point_metadata_text.cget("height")) == \
+    gis_graphical_editor.track_metadata_panel._METADATA_BOX_HEIGHT
+  assert displayed_metadata_line_count == \
+    gis_graphical_editor.track_metadata_panel._METADATA_BOX_HEIGHT
+  assert scrollbar_children == []
+
+  root.destroy()
+
+
+def test_track_metadata_panel_set_panel_width_updates_metadata_text_width():
+  root = tkinter.Tk()
+  root.withdraw()
+  track_metadata_panel = gis_graphical_editor.track_metadata_panel.TrackMetadataPanel(
+    root,
+    panel_width=400,
+  )
+  point_metadata_text = track_metadata_panel._point_metadata_text
+  initial_metadata_text_width = int(point_metadata_text.cget("width"))
+
+  track_metadata_panel.set_panel_width(500)
+  updated_metadata_text_width = int(point_metadata_text.cget("width"))
+
+  assert updated_metadata_text_width > initial_metadata_text_width
+  assert int(point_metadata_text.cget("height")) == 1
+
+  root.destroy()

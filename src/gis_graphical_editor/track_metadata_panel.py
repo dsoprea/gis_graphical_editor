@@ -14,7 +14,7 @@ class TrackMetadataPanel(tkinter.Frame):
   """Point metadata readout above the segment checklist."""
 
   def __init__(self, master, panel_width, sidebar_drawer=None):
-    """Build a scrollable point metadata box at panel_width."""
+    """Build a fixed-size point metadata box at panel_width."""
 
     super().__init__(master, width=panel_width)
 
@@ -44,7 +44,7 @@ class TrackMetadataPanel(tkinter.Frame):
     self._point_metadata_text.config(width=metadata_text_width)
 
   def _build_widgets(self, panel_width):
-    """Lay out a titled scrollable text box for point metadata."""
+    """Lay out a titled fixed-size text box for point metadata."""
 
     metadata_text_width = _compute_metadata_text_width(panel_width)
 
@@ -52,15 +52,15 @@ class TrackMetadataPanel(tkinter.Frame):
       self._build_metadata_section(
         _CURRENT_LOCATION_SECTION_TITLE,
         metadata_text_width,
-        top_padding=(8, 0),
+        section_padding=(8, 4),
       )
     self.set_point_metadata([])
 
-  def _build_metadata_section(self, section_title, metadata_text_width, top_padding):
+  def _build_metadata_section(self, section_title, metadata_text_width, section_padding):
     """Return a read-only metadata text widget under a bold section title."""
 
     section_frame = tkinter.Frame(self, bg=self._background_color, bd=0, relief=tkinter.FLAT)
-    section_frame.pack(side=tkinter.TOP, fill=tkinter.X, padx=8, pady=top_padding)
+    section_frame.pack(side=tkinter.TOP, fill=tkinter.X, padx=8, pady=section_padding)
 
     title_row = tkinter.Frame(section_frame, bg=self._background_color, bd=0, relief=tkinter.FLAT)
     title_row.pack(side=tkinter.TOP, fill=tkinter.X)
@@ -80,7 +80,7 @@ class TrackMetadataPanel(tkinter.Frame):
     return self._build_metadata_text_box(section_frame, metadata_text_width)
 
   def _build_metadata_text_box(self, parent_frame, metadata_text_width):
-    """Return a read-only text widget with a vertical scrollbar inside parent_frame."""
+    """Return a fixed-size read-only text widget inside parent_frame."""
 
     text_container = tkinter.Frame(
       parent_frame,
@@ -88,24 +88,13 @@ class TrackMetadataPanel(tkinter.Frame):
       bd=0,
       relief=tkinter.FLAT,
     )
-    text_container.pack(fill=tkinter.BOTH, expand=True, padx=4, pady=0)
-
-    scrollbar = tkinter.Scrollbar(
-      text_container,
-      orient=tkinter.VERTICAL,
-      bg=self._background_color,
-      bd=0,
-      highlightthickness=0,
-      relief=tkinter.FLAT,
-    )
-    scrollbar.pack(side=tkinter.RIGHT, fill=tkinter.Y)
+    text_container.pack(fill=tkinter.X, padx=4, pady=0)
 
     metadata_text = tkinter.Text(
       text_container,
       width=metadata_text_width,
       height=1,
       wrap=tkinter.WORD,
-      yscrollcommand=scrollbar.set,
       state=tkinter.DISABLED,
       bg=self._background_color,
       bd=0,
@@ -115,39 +104,43 @@ class TrackMetadataPanel(tkinter.Frame):
       spacing2=0,
       spacing3=0,
     )
-    metadata_text.pack(side=tkinter.LEFT, fill=tkinter.BOTH, expand=True)
-    scrollbar.config(command=metadata_text.yview)
+    metadata_text.pack(side=tkinter.LEFT, fill=tkinter.X)
     metadata_text.tag_configure(
       _NO_LOCATION_SELECTED_TEXT_TAG,
       foreground=_NO_LOCATION_SELECTED_FOREGROUND,
     )
+    metadata_text.bind("<MouseWheel>", _block_metadata_text_scroll)
+    metadata_text.bind("<Button-4>", _block_metadata_text_scroll)
+    metadata_text.bind("<Button-5>", _block_metadata_text_scroll)
 
     return metadata_text
 
   def _set_metadata_text(self, metadata_text_widget, metadata_lines):
-    """Write metadata_lines into one read-only metadata text widget."""
+    """Write metadata_lines into one fixed-size read-only metadata text widget."""
 
     metadata_text_widget.config(state=tkinter.NORMAL)
     metadata_text_widget.delete("1.0", tkinter.END)
 
     if metadata_lines:
-      metadata_body = "\n".join(metadata_lines)
+      visible_metadata_lines = metadata_lines[:_METADATA_BOX_HEIGHT]
+      metadata_body = "\n".join(visible_metadata_lines)
       metadata_text_widget.insert(tkinter.END, metadata_body)
-      line_count = len(metadata_lines)
+      metadata_line_count = len(visible_metadata_lines)
     else:
       metadata_text_widget.insert(
         tkinter.END,
         _NO_LOCATION_SELECTED_PLACEHOLDER,
         _NO_LOCATION_SELECTED_TEXT_TAG,
       )
-      line_count = 1
+      metadata_line_count = 1
 
-    if line_count > _METADATA_BOX_HEIGHT:
+    if metadata_line_count > _METADATA_BOX_HEIGHT:
       display_height = _METADATA_BOX_HEIGHT
     else:
-      display_height = line_count
+      display_height = metadata_line_count
 
     metadata_text_widget.config(height=display_height, state=tkinter.DISABLED)
+    metadata_text_widget.yview_moveto(0)
 
 
 def _compute_metadata_text_width(panel_width):
@@ -159,8 +152,8 @@ def _compute_metadata_text_width(panel_width):
   if character_width <= 0:
     return 20
 
-  # Reserve space for sidebar padding, label frames, scrollbar, and text margins.
-  horizontal_padding = 56
+  # Reserve space for sidebar padding, label frames, and text margins.
+  horizontal_padding = 40
   usable_width = panel_width - horizontal_padding
   metadata_text_width = usable_width // character_width
 
@@ -168,3 +161,9 @@ def _compute_metadata_text_width(panel_width):
     metadata_text_width = 10
 
   return metadata_text_width
+
+
+def _block_metadata_text_scroll(_event):
+  """Prevent mouse-wheel scrolling in the fixed-size metadata text box."""
+
+  return "break"
