@@ -3,7 +3,6 @@
 import tkinter
 
 _OVERLAY_BUTTON_X = 20
-_OVERLAY_BUTTON_STACK_GAP_PIXELS = 8
 _OVERLAY_TOGGLE_BUTTON_WIDTH = 12
 _OVERLAY_SECONDARY_BUTTON_WIDTH = 14
 _OVERLAY_TOGGLE_BUTTON_BACKGROUND = "#0066CC"
@@ -18,15 +17,29 @@ _OVERLAY_TOGGLE_ENTER_LABEL = "Enter\nOverlay Mode"
 _OVERLAY_TOGGLE_EXIT_LABEL = "Exit\nOverlay Mode"
 
 
-def compute_first_overlay_button_y(map_widget):
-  """Return the Y coordinate for the first overlay button below the zoom-out control."""
+def compute_map_top_left_button_stack_gap_pixels(map_widget):
+  """Return the vertical gap between stacked top-left map controls."""
 
+  zoom_in_button = map_widget.button_zoom_in
   zoom_out_button = map_widget.button_zoom_out
 
   return (
     zoom_out_button.canvas_position[1]
+    - zoom_in_button.canvas_position[1]
+    - zoom_in_button.height
+  )
+
+
+def compute_first_overlay_button_y(map_widget):
+  """Return the Y coordinate for the first overlay button below the zoom-out control."""
+
+  zoom_out_button = map_widget.button_zoom_out
+  stack_gap_pixels = compute_map_top_left_button_stack_gap_pixels(map_widget)
+
+  return (
+    zoom_out_button.canvas_position[1]
     + zoom_out_button.height
-    + _OVERLAY_BUTTON_STACK_GAP_PIXELS
+    + stack_gap_pixels
   )
 
 
@@ -47,6 +60,8 @@ class MapOverlayModePanel:
     self._on_push_overlay = on_push_overlay
     self._on_clear_overlays = on_clear_overlays
     self._overlay_mode_active = False
+    self._map_top_left_button_stack_gap_pixels = \
+      compute_map_top_left_button_stack_gap_pixels(map_widget)
     self._overlay_toggle_button_y = compute_first_overlay_button_y(map_widget)
     self._toggle_overlay_mode_button = tkinter.Button(
       map_widget,
@@ -59,6 +74,10 @@ class MapOverlayModePanel:
       fg=_OVERLAY_TOGGLE_BUTTON_FOREGROUND,
       activebackground=_OVERLAY_TOGGLE_BUTTON_ACTIVE_BACKGROUND,
       activeforeground=_OVERLAY_TOGGLE_BUTTON_FOREGROUND,
+      relief=tkinter.FLAT,
+      overrelief=tkinter.FLAT,
+      borderwidth=0,
+      highlightthickness=0,
     )
     self._toggle_overlay_mode_button.place(
       x=_OVERLAY_BUTTON_X,
@@ -94,7 +113,7 @@ class MapOverlayModePanel:
     map_widget.update_idletasks()
     self._overlay_button_stack_step_pixels = (
       self._toggle_overlay_mode_button.winfo_reqheight()
-      + _OVERLAY_BUTTON_STACK_GAP_PIXELS
+      + self._map_top_left_button_stack_gap_pixels
     )
     self._refresh_control_visibility()
 
