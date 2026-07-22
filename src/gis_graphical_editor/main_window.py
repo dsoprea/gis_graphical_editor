@@ -2,6 +2,7 @@
 
 import logging
 import os
+import time
 import tkinter
 import tkinter.filedialog
 import tkinter.messagebox
@@ -34,6 +35,8 @@ _ORANGE_MARKER_TEXT = "#CC5500"
 _RED_MARKER_TEXT = "#990000"
 _SEGMENT_NAME_MARKER_TEXT = "#9B30FF"
 _MAP_VISIBILITY_MARGIN = 0.05
+_MAP_CONTROL_CLICK_STATE_MASK = 0x0004
+_CONTROL_KEYSYM_NAMES = frozenset({"Control_L", "Control_R"})
 
 
 class MainWindow:
@@ -77,6 +80,13 @@ class MainWindow:
     self._loaded_gpx_waypoints = None
     self._loaded_segment_label_texts = None
     self._segment_edit_undo_stack = []
+    self._map_control_zoom_last_handled_monotonic_seconds = 0.0
+    self._pressed_control_key_names = set()
+    self._control_modifier_seen_on_pointer = False
+    self._original_map_mouse_click = None
+    self._original_map_mouse_release = None
+    self._original_map_mouse_move = None
+    self._original_map_mouse_zoom = None
 
     self._build_menu_bar()
     self._bind_menu_accelerators()
@@ -140,6 +150,58 @@ class MainWindow:
     self._root.bind("<Control-W>", self._handle_close_gpx_shortcut)
     self._root.bind("<Control-q>", self._handle_exit_shortcut)
     self._root.bind("<Control-Q>", self._handle_exit_shortcut)
+    self._root.bind_all("<KeyPress-Control_L>", self._handle_control_key_pressed, add="+")
+    self._root.bind_all("<KeyPress-Control_R>", self._handle_control_key_pressed, add="+")
+    self._root.bind_all("<KeyRelease-Control_L>", self._handle_control_key_released, add="+")
+    self._root.bind_all("<KeyRelease-Control_R>", self._handle_control_key_released, add="+")
+    self._root.bind_all("<KeyPress>", self._handle_any_key_press, add="+")
+    self._root.bind_all("<KeyRelease>", self._handle_any_key_release, add="+")
+
+  def _handle_any_key_press(self, event):
+    """Track Control_L and Control_R from generic key-press events."""
+
+    if event.keysym in _CONTROL_KEYSYM_NAMES:
+      self._pressed_control_key_names.add(event.keysym)
+
+  def _handle_any_key_release(self, event):
+    """Stop tracking Control_L and Control_R from generic key-release events."""
+
+    self._pressed_control_key_names.discard(event.keysym)
+
+  def _handle_control_key_pressed(self, event):
+    """Track when either Control key is held for map ctrl+click zoom."""
+
+    if event.keysym in _CONTROL_KEYSYM_NAMES:
+      self._pressed_control_key_names.add(event.keysym)
+
+  def _handle_control_key_released(self, event):
+    """Stop tracking a Control key once it is released."""
+
+    self._pressed_control_key_names.discard(event.keysym)
+
+  def _is_control_modifier_active_for_map_event(self, event):
+    """Return True when Control is held for a map mouse event."""
+
+    if event.state & _MAP_CONTROL_CLICK_STATE_MASK:
+      self._control_modifier_seen_on_pointer = True
+
+      return True
+
+    if self._pressed_control_key_names:
+      return True
+
+    return self._control_modifier_seen_on_pointer
+
+  def _handle_map_pointer_motion(self, event):
+    """Remember when Control is held during pointer movement over the map."""
+
+    if event.state & _MAP_CONTROL_CLICK_STATE_MASK:
+      self._control_modifier_seen_on_pointer = True
+
+      return
+
+    if not self._pressed_control_key_names:
+      self._control_modifier_seen_on_pointer = False
 
   def _update_file_menu_state(self):
     """Enable Save As and Close only while a map with loaded track data is visible."""
@@ -402,19 +464,87 @@ class MainWindow:
     self._update_file_menu_state()
 
   def _bind_map_widget_events(self):
-    """Attach canvas handlers for map-specific mouse gestures."""
+    """Replace tkintermapview canvas bindings so ctrl+click can zoom out."""
 
-    self._map_widget.canvas.bind("<Double-Button-1>", self._handle_map_double_click)
+    map_canvas = self._map_widget.canvas
+    map_widget = self._map_widget
+    self._original_map_mouse_click = map_widget.mouse_click
+    self._original_map_mouse_release = map_widget.mouse_release
+    self._original_map_mouse_move = map_widget.mouse_move
+    self._original_map_mouse_zoom = map_widget.mouse_zoom
+    map_canvas.unbind("<Button-1>")
+    map_canvas.unbind("<ButtonRelease-1>")
+    map_canvas.unbind("<B1-Motion>")
+    map_canvas.unbind("<Button-4>")
+    map_canvas.unbind("<Button-5>")
+    map_canvas.bind("<Button-1>", self._handle_map_canvas_button_one)
+    map_canvas.bind("<ButtonRelease-1>", self._handle_map_canvas_button_release)
+    map_canvas.bind("<B1-Motion>", self._handle_map_canvas_button_one_motion)
+    map_canvas.bind("<Button-4>", self._handle_map_canvas_zoom_button)
+    map_canvas.bind("<Button-5>", self._handle_map_canvas_zoom_button)
+    map_canvas.bind("<Double-Button-1>", self._handle_map_double_click)
+    map_canvas.bind("<Motion>", self._handle_map_pointer_motion, add="+")
+
+  def _handle_map_canvas_button_one(self, event):
+    """Zoom out on ctrl+click or start a map pan for a normal left click."""
+
+    if self._is_control_modifier_active_for_map_event(event):
+      return self._handle_map_control_zoom_event(event, -1)
+
+    self._original_map_mouse_click(event)
+
+  def _handle_map_canvas_button_release(self, event):
+    """Forward button release to tkintermapview after ctrl+click handling."""
+
+    self._original_map_mouse_release(event)
+
+  def _handle_map_canvas_button_one_motion(self, event):
+    """Block panning while Control is held; otherwise forward drag events."""
+
+    if self._is_control_modifier_active_for_map_event(event):
+      return "break"
+
+    self._original_map_mouse_move(event)
+
+  def _handle_map_canvas_zoom_button(self, event):
+    """Route Linux scroll-button events to zoom out while Control is held."""
+
+    if self._is_control_modifier_active_for_map_event(event):
+      zoom_delta = -1 if event.num == 4 else 1
+
+      return self._handle_map_control_zoom_event(event, zoom_delta)
+
+    return self._original_map_mouse_zoom(event)
 
   def _handle_map_double_click(self, event):
-    """Zoom in one level centered on the double-clicked map location."""
+    """Zoom in on double-click, or zoom out when Control is held."""
+
+    if self._is_control_modifier_active_for_map_event(event):
+      return self._handle_map_control_zoom_event(event, -1)
+
+    self._set_map_zoom_centered_on_canvas_event(event, 1)
+
+  def _handle_map_control_zoom_event(self, event, zoom_delta):
+    """Apply one map zoom step for a ctrl+click or ctrl+wheel button event."""
+
+    now_monotonic_seconds = time.monotonic()
+
+    if now_monotonic_seconds - self._map_control_zoom_last_handled_monotonic_seconds < 0.05:
+      return "break"
+
+    self._map_control_zoom_last_handled_monotonic_seconds = now_monotonic_seconds
+    self._set_map_zoom_centered_on_canvas_event(event, zoom_delta)
+
+    return "break"
+
+  def _set_map_zoom_centered_on_canvas_event(self, event, zoom_delta):
+    """Change map zoom by zoom_delta levels, keeping event.x/event.y fixed on screen."""
 
     relative_mouse_x = event.x / self._map_widget.width
     relative_mouse_y = event.y / self._map_widget.height
-    new_zoom = self._map_widget.zoom + 1
 
     self._map_widget.set_zoom(
-      new_zoom,
+      self._map_widget.zoom + zoom_delta,
       relative_pointer_x=relative_mouse_x,
       relative_pointer_y=relative_mouse_y,
     )

@@ -38,6 +38,7 @@ Complete catalog of GIS Graphical Editor (`gge`) capabilities, including map dis
 - **Track path**: blue polyline (`#0066CC`, width 9) through all loaded coordinates.
 - **Auto framing**: after each load, the map fits a bounding box around the track (max/min latitude and longitude).
 - **Double-click zoom**: double-clicking the map canvas increases zoom by one level, centered on the click position.
+- **Ctrl+click zoom out**: Ctrl+clicking the map canvas decreases zoom by one level, centered on the click position (does not start a pan).
 - **Close track**: **File → Close** (Ctrl+W) clears paths, markers, and removes the map widget. The menu item is disabled until a track is loaded.
 
 ## Time slider and track animation
