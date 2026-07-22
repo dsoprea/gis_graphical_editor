@@ -2,6 +2,10 @@
 
 import tkinter
 
+import gis_graphical_editor.gpx_utility
+
+_DEFAULT_WAYPOINT_HOVER_PIXEL_THRESHOLD = 16
+
 
 class MapMarkerTooltip:
   """Floating label shown while the pointer rests over a map marker."""
@@ -51,55 +55,101 @@ class MapMarkerTooltip:
       self._tooltip_window.withdraw()
 
 
-def schedule_bind_map_marker_tooltip(root, map_marker, tooltip_text):
-  """Attach hover tooltip bindings after tkintermapview draws the marker canvas items."""
+class MapWaypointHoverTooltipManager:
+  """Show waypoint name tooltips from canvas motion near star markers."""
 
-  if tooltip_text == "":
-    return
+  def __init__(self, root, map_widget, pixel_threshold=_DEFAULT_WAYPOINT_HOVER_PIXEL_THRESHOLD):
+    """Store map widget bindings and the shared floating tooltip window."""
 
-  map_marker_tooltip = MapMarkerTooltip(root)
+    self._root = root
+    self._map_widget = map_widget
+    self._pixel_threshold = pixel_threshold
+    self._waypoint_marker_entries = []
+    self._tooltip = MapMarkerTooltip(root)
+    self._hovered_gpx_waypoint_record = None
+    self._installed = False
 
-  def try_bind():
-    if map_marker.deleted:
+  def install_on_map_widget(self, map_widget):
+    """Bind canvas motion events once so hover survives marker redraws."""
+
+    if self._installed:
       return
 
-    canvas_item_ids = _collect_map_marker_canvas_item_ids(map_marker)
+    self._installed = True
+    map_canvas = map_widget.canvas
+    map_canvas.bind("<Motion>", self._handle_map_canvas_motion, add="+")
+    map_canvas.bind("<Leave>", self._handle_map_canvas_leave, add="+")
 
-    if not canvas_item_ids:
-      root.after(50, try_bind)
+  def set_waypoint_marker_entries(self, waypoint_marker_entries):
+    """Replace the waypoint markers consulted on each canvas motion event."""
+
+    self._waypoint_marker_entries = list(waypoint_marker_entries)
+
+    if not self._waypoint_marker_entries:
+      self._tooltip.hide()
+      self._hovered_gpx_waypoint_record = None
+
+  def clear(self):
+    """Forget waypoint markers and hide any visible tooltip."""
+
+    self.set_waypoint_marker_entries([])
+
+  def _handle_map_canvas_motion(self, event):
+    """Show or hide the tooltip for the nearest waypoint under the pointer."""
+
+    gpx_waypoint_record = find_gpx_waypoint_at_canvas_position(
+      self._waypoint_marker_entries,
+      event.x,
+      event.y,
+      self._pixel_threshold,
+    )
+
+    if gpx_waypoint_record is None:
+      if self._hovered_gpx_waypoint_record is not None:
+        self._tooltip.hide()
+        self._hovered_gpx_waypoint_record = None
 
       return
 
-    canvas = map_marker.map_widget.canvas
+    tooltip_text = \
+      gis_graphical_editor.gpx_utility.build_gpx_waypoint_tooltip_text(gpx_waypoint_record)
 
-    def show_tooltip(event):
-      map_marker_tooltip.show(tooltip_text, event.x_root, event.y_root)
+    if tooltip_text == "":
+      if self._hovered_gpx_waypoint_record is not None:
+        self._tooltip.hide()
+        self._hovered_gpx_waypoint_record = None
 
-    def hide_tooltip(event):
-      map_marker_tooltip.hide()
+      return
 
-    for canvas_item_id in canvas_item_ids:
-      canvas.tag_bind(canvas_item_id, "<Enter>", show_tooltip)
-      canvas.tag_bind(canvas_item_id, "<Leave>", hide_tooltip)
+    self._hovered_gpx_waypoint_record = gpx_waypoint_record
+    self._tooltip.show(tooltip_text, event.x_root, event.y_root)
 
-  root.after_idle(try_bind)
+  def _handle_map_canvas_leave(self, event):
+    """Hide the tooltip when the pointer leaves the map canvas."""
+
+    self._tooltip.hide()
+    self._hovered_gpx_waypoint_record = None
 
 
-def _collect_map_marker_canvas_item_ids(map_marker):
-  """Return drawable canvas item ids for one tkintermapview position marker."""
+def find_gpx_waypoint_at_canvas_position(
+  waypoint_marker_entries,
+  canvas_x,
+  canvas_y,
+  pixel_threshold,
+):
+  """Return the nearest GPX waypoint record within pixel_threshold, if any."""
 
-  canvas_item_ids = []
+  closest_waypoint_record = None
+  closest_distance_squared = pixel_threshold * pixel_threshold
 
-  if map_marker.canvas_icon is not None:
-    canvas_item_ids.append(map_marker.canvas_icon)
+  for map_marker, gpx_waypoint_record in waypoint_marker_entries:
+    marker_canvas_x, marker_canvas_y = map_marker.get_canvas_pos(map_marker.position)
+    delta_x = marker_canvas_x - canvas_x
+    delta_y = marker_canvas_y - canvas_y
+    distance_squared = delta_x * delta_x + delta_y * delta_y
 
-  if map_marker.canvas_text is not None:
-    canvas_item_ids.append(map_marker.canvas_text)
+    if distance_squared <= closest_distance_squared:
+      closest_distance_squared = distance_squared
+      closest_waypoint_record = gpx_waypoint_record
 
-  if map_marker.polygon is not None:
-    canvas_item_ids.append(map_marker.polygon)
-
-  if map_marker.big_circle is not None:
-    canvas_item_ids.append(map_marker.big_circle)
-
-  return canvas_item_ids
+  return closest_waypoint_record

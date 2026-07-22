@@ -97,6 +97,7 @@ class MainWindow:
     self._map_overlay_mode_panel = None
     self._map_overlay_display_manager = None
     self._gpx_waypoint_marker_entries = []
+    self._waypoint_hover_tooltip_manager = None
 
     self._build_menu_bar()
     self._bind_menu_accelerators()
@@ -456,6 +457,13 @@ class MainWindow:
         text_color=_SEGMENT_NAME_MARKER_TEXT,
       )
     self._segment_label_overlay_manager.install_on_map_widget(self._map_widget)
+    self._waypoint_hover_tooltip_manager = \
+      gis_graphical_editor.map_marker_tooltip_utility.MapWaypointHoverTooltipManager(
+        self._root,
+        self._map_widget,
+        pixel_threshold=_WAYPOINT_CLICK_PIXEL_THRESHOLD,
+      )
+    self._waypoint_hover_tooltip_manager.install_on_map_widget(self._map_widget)
     self._ensure_overlay_mode_support()
     self._bind_map_widget_events()
     self._update_file_menu_state()
@@ -661,20 +669,12 @@ class MainWindow:
   def _find_gpx_waypoint_at_canvas_position(self, canvas_x, canvas_y):
     """Return the nearest GPX waypoint within the click threshold, if any."""
 
-    closest_waypoint_record = None
-    closest_distance_squared = _WAYPOINT_CLICK_PIXEL_THRESHOLD * _WAYPOINT_CLICK_PIXEL_THRESHOLD
-
-    for map_marker, gpx_waypoint_record in self._gpx_waypoint_marker_entries:
-      marker_canvas_x, marker_canvas_y = map_marker.get_canvas_pos(map_marker.position)
-      delta_x = marker_canvas_x - canvas_x
-      delta_y = marker_canvas_y - canvas_y
-      distance_squared = delta_x * delta_x + delta_y * delta_y
-
-      if distance_squared <= closest_distance_squared:
-        closest_distance_squared = distance_squared
-        closest_waypoint_record = gpx_waypoint_record
-
-    return closest_waypoint_record
+    return gis_graphical_editor.map_marker_tooltip_utility.find_gpx_waypoint_at_canvas_position(
+      self._gpx_waypoint_marker_entries,
+      canvas_x,
+      canvas_y,
+      _WAYPOINT_CLICK_PIXEL_THRESHOLD,
+    )
 
   def _bind_map_widget_events(self):
     """Replace tkintermapview canvas bindings so ctrl+click can zoom out."""
@@ -854,6 +854,11 @@ class MainWindow:
     self._pending_overlay_locations = []
     self._pushed_captured_overlays = []
     self._gpx_waypoint_marker_entries = []
+
+    if self._waypoint_hover_tooltip_manager is not None:
+      self._waypoint_hover_tooltip_manager.clear()
+
+    self._waypoint_hover_tooltip_manager = None
     self._slider_position_marker = None
     self._loaded_gpx_points = None
     self._loaded_gpx_segments = None
@@ -1681,12 +1686,10 @@ class MainWindow:
         icon_anchor="center",
       )
       self._gpx_waypoint_marker_entries.append((map_marker, gpx_waypoint))
-      waypoint_tooltip_text = \
-        gis_graphical_editor.gpx_utility.build_gpx_waypoint_tooltip_text(gpx_waypoint)
-      gis_graphical_editor.map_marker_tooltip_utility.schedule_bind_map_marker_tooltip(
-        self._root,
-        map_marker,
-        waypoint_tooltip_text,
+
+    if self._waypoint_hover_tooltip_manager is not None:
+      self._waypoint_hover_tooltip_manager.set_waypoint_marker_entries(
+        self._gpx_waypoint_marker_entries,
       )
 
   def _display_recorded_points(self, gpx_points):
